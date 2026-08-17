@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>LINK.LOG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@700;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+/* ===================== 토큰 (FIT.LOG DESIGN_GUIDE 그대로) ===================== */
+:root{
+  --paper:#FFFFFF; --panel:#FBF8F3; --dim:#F2EBE0; --beige:#E3D8C6;
+  --ink:#181613; --mut:#8B8377;
+  --olive:#5F6B33; --terra:#C25E3A; --gold:#EBC63C;
+  --sp1:4px; --sp2:8px; --sp3:12px; --sp4:16px; --sp5:24px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  font-size:13px; line-height:1.5; color:var(--ink); background:var(--paper);
+  overflow-wrap:anywhere; -webkit-text-size-adjust:100%; overflow-x:hidden;
+}
+button,input,select,textarea{font:inherit;color:inherit;appearance:none;-webkit-appearance:none;border-radius:0}
+button{background:none;border:0;cursor:pointer}
+a{color:inherit}
+.num{font-family:Doto,ui-monospace,monospace;font-weight:900;letter-spacing:.02em}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ===================== 레이아웃 ===================== */
+.app{max-width:1320px;margin:0 auto;display:block}
+.side{display:none}
+.shell{padding:0 0 78px}
+.tabpage{max-width:1000px;margin:0 auto;padding:0 12px}
+.hidden{display:none !important}
+
+.topbar{position:sticky;top:0;z-index:40;background:var(--paper);border-bottom:2px solid var(--ink);
+  display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px}
+.logo{display:flex;align-items:baseline;gap:5px;min-width:0}
+.logo b{font-family:Doto,monospace;font-weight:900;font-size:20px}
+.logo .dot{width:7px;height:7px;background:var(--terra);display:inline-block}
+.logo em{font-style:normal;font-size:9px;letter-spacing:.16em;color:var(--mut)}
+.acct{font-size:9.5px;letter-spacing:.12em;color:var(--mut);border:1px solid var(--beige);padding:5px 8px;white-space:nowrap}
+
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--panel);border-top:2px solid var(--ink);
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding-bottom:env(safe-area-inset-bottom)}
+.tabbar b{padding:10px 2px 12px;text-align:center;font-size:10px;font-weight:800;color:var(--mut);
+  border-right:1px solid var(--beige);cursor:pointer;letter-spacing:.02em}
+.tabbar b:last-child{border-right:0}
+.tabbar b.on{background:var(--ink);color:var(--paper)}
+
+.sec{display:flex;align-items:baseline;gap:7px;margin:var(--sp4) 0 var(--sp2);flex-wrap:wrap}
+.sec h2{font-size:14px;font-weight:800}
+.sec span{font-size:9px;letter-spacing:.14em;color:var(--mut)}
+.sec .grow{flex:1}
+
+/* 검색 · 세그 · 칩 */
+.searchrow{display:flex;gap:6px;margin-top:var(--sp3)}
+.searchrow input{flex:1;min-width:0;border:2px solid var(--ink);background:var(--paper);padding:8px 10px;font-size:12.5px}
+.searchrow input:focus{outline:0;box-shadow:inset 0 0 0 2px var(--gold)}
+.seg{display:flex;border:2px solid var(--ink);margin-top:var(--sp2)}
+.seg b{flex:1;text-align:center;padding:7px 4px;font-size:11px;font-weight:800;color:var(--mut);
+  border-right:1px solid var(--ink);cursor:pointer}
+.seg b:last-child{border-right:0}
+.seg b.on{background:var(--ink);color:var(--paper)}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:var(--sp2);align-items:center}
+.chip{font-size:10px;padding:4px 7px;border:1px solid var(--beige);background:var(--panel);color:var(--mut);
+  cursor:pointer;letter-spacing:.04em;white-space:nowrap}
+.chip.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.chip.stat{cursor:default}
+.flab{font-size:9px;letter-spacing:.14em;color:var(--mut);align-self:center;padding-right:2px;white-space:nowrap}
+
+.btn{border:2px solid var(--ink);background:var(--paper);padding:8px 12px;font-size:11.5px;font-weight:800;
+  letter-spacing:.03em;display:inline-flex;align-items:center;gap:6px;justify-content:center}
+.btn:active{transform:translateY(1px)}
+.btn.fill{background:var(--ink);color:var(--paper)}
+.btn.danger{border-color:var(--terra);color:var(--terra)}
+.btn.sm{padding:6px 9px;font-size:10.5px;border-width:1px}
+.btn.w{width:100%}
+
+/* ===================== 링크 행 ===================== */
+.llist{border:2px solid var(--ink);margin-top:var(--sp3)}
+.lrow{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:9px;align-items:center;
+  padding:9px 10px;border-bottom:1px solid var(--beige);cursor:pointer;background:var(--paper)}
+.lrow:last-child{border-bottom:0}
+.lrow:hover{background:var(--panel)}
+.lrow.dead{opacity:.5}
+.fico{width:20px;height:20px;display:block;object-fit:contain;background:var(--dim)}
+.fico.txt{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--mut)}
+.lmain{min-width:0}
+.lttl{font-size:12.5px;font-weight:800;line-height:1.35;overflow:hidden;text-overflow:ellipsis;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.lsub{font-size:9.5px;color:var(--mut);margin-top:3px;letter-spacing:.03em;display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.lgo{border:1px solid var(--ink);padding:6px 9px;font-size:10px;font-weight:800;letter-spacing:.06em;
+  text-decoration:none;white-space:nowrap}
+.lgo:hover{background:var(--ink);color:var(--paper)}
+
+.tag{font-size:9px;font-weight:800;letter-spacing:.06em;padding:2px 5px;border:1px solid var(--beige);color:var(--mut)}
+.tag.work{background:var(--olive);border-color:var(--olive);color:#fff}
+.tag.taste{background:var(--gold);border-color:var(--gold);color:var(--ink)}
+.tag.tool{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.tag.ref{background:var(--panel)}
+.tag.bad{background:var(--terra);border-color:var(--terra);color:#fff}
+.src{font-size:8.5px;letter-spacing:.1em;color:var(--mut);border:1px solid var(--beige);padding:1px 4px}
+
+.empty{border:2px dashed var(--beige);background:var(--panel);padding:26px 14px;text-align:center;
+  color:var(--mut);font-size:11.5px;line-height:1.9;margin-top:var(--sp3)}
+
+/* 잠자는 링크 */
+.wake{border:2px solid var(--ink);background:var(--panel);margin-top:var(--sp3)}
+.wake .wh{padding:9px 11px;border-bottom:2px solid var(--ink);display:flex;justify-content:space-between;
+  align-items:center;gap:8px;flex-wrap:wrap}
+.wake .wh b{font-size:12px;font-weight:800}
+.wake .wh span{font-size:9px;letter-spacing:.13em;color:var(--mut)}
+.wake .lrow{background:var(--panel)}
+.wake .lrow:hover{background:var(--paper)}
+
+/* 통계 4칸 */
+.stat4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:2px solid var(--ink);margin-top:var(--sp3)}
+.stat4 div{padding:10px 4px;text-align:center;border-right:1px solid var(--beige)}
+.stat4 div:last-child{border-right:0}
+.stat4 i{display:block;font-style:normal;font-size:8.5px;letter-spacing:.12em;color:var(--mut);margin-top:3px}
+.stat4 b{font-family:Doto,monospace;font-weight:900;font-size:19px}
+
+/* 브랜드 표 */
+.btab{border:2px solid var(--ink);margin-top:var(--sp3);overflow:hidden}
+.brow{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:9px;align-items:center;
+  padding:9px 10px;border-bottom:1px solid var(--beige);cursor:pointer}
+.brow:last-child{border-bottom:0}
+.brow:hover{background:var(--panel)}
+.bmeta{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+
+/* ===================== 모달 / 바텀시트 ===================== */
+.mask{position:fixed;inset:0;background:rgba(24,22,19,.42);z-index:80;display:none}
+.mask.on{display:block}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:90;background:var(--paper);border-top:2px solid var(--ink);
+  max-height:92vh;overflow:auto;display:none;padding-bottom:env(safe-area-inset-bottom)}
+.sheet.on{display:block}
+.shd{position:sticky;top:0;background:var(--paper);border-bottom:2px solid var(--ink);z-index:2;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 12px}
+.shd b{font-size:13px;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shd .x{font-size:11px;font-weight:800;color:var(--mut);padding:4px 6px;cursor:pointer;letter-spacing:.1em}
+.sbd{padding:12px 12px 20px;max-width:760px;margin:0 auto}
+
+.f{margin-bottom:var(--sp3)}
+.f>label{display:block;font-size:9.5px;letter-spacing:.14em;color:var(--mut);margin-bottom:4px}
+.f input,.f textarea,.f select{width:100%;border:2px solid var(--ink);background:var(--paper);padding:8px 9px;font-size:12.5px}
+.f textarea{min-height:64px;resize:vertical;line-height:1.6}
+.f input:focus,.f textarea:focus,.f select:focus{outline:0;box-shadow:inset 0 0 0 2px var(--gold)}
+.f2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pick{display:flex;flex-wrap:wrap;gap:4px}
+.pick b{border:1px solid var(--beige);background:var(--panel);color:var(--mut);padding:6px 9px;
+  font-size:11px;font-weight:800;cursor:pointer}
+.pick b.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+
+.kv{border:1px solid var(--beige);background:var(--panel);padding:9px 10px;margin-bottom:var(--sp2)}
+.kv .l{font-size:9.5px;letter-spacing:.13em;color:var(--mut)}
+.kv .v{font-size:12.5px;margin-top:3px;line-height:1.65;white-space:pre-wrap}
+
+.note{border:2px solid var(--beige);background:var(--panel);padding:12px;margin-top:var(--sp3);
+  font-size:11px;color:var(--mut);line-height:1.9}
+.note b{color:var(--ink);font-size:11.5px}
+
+.dropzone{border:2px dashed var(--ink);background:var(--panel);padding:22px 14px;text-align:center;
+  font-size:11.5px;color:var(--mut);line-height:1.9;margin-top:var(--sp2);cursor:pointer}
+.dropzone.drag{box-shadow:inset 0 0 0 3px var(--gold);background:var(--dim)}
+
+.toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);z-index:120;background:var(--ink);color:var(--paper);
+  padding:9px 14px;font-size:11.5px;font-weight:800;letter-spacing:.03em;opacity:0;pointer-events:none;
+  transition:opacity .18s;max-width:88vw;text-align:center}
+.toast.on{opacity:1}
+
+/* ===================== PC (≥960) ===================== */
+@media(min-width:960px){
+  .app{display:grid;grid-template-columns:236px minmax(0,1fr)}
+  .topbar{display:none}
+  .tabbar{display:none}
+  .side{display:block;position:sticky;top:0;height:100vh;border-right:2px solid var(--ink);background:var(--panel);
+    padding:18px 14px;overflow:auto}
+  .side .logo{margin-bottom:22px}
+  .side nav b{display:block;padding:10px 11px;font-size:12.5px;font-weight:800;color:var(--mut);
+    border:1px solid transparent;cursor:pointer;margin-bottom:3px}
+  .side nav b.on{background:var(--ink);color:var(--paper)}
+  .side .acct{display:block;width:100%;margin-top:22px;text-align:center}
+  .shell{padding:22px 0 40px}
+  .searchrow,.seg{max-width:520px}
+  .sheet{left:50%;top:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);width:min(720px,92vw);
+    max-height:88vh;border:2px solid var(--ink)}
+  .toast{bottom:32px}
+}
+@media(max-width:959px){ .app{max-width:430px;margin:0 auto} }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="side">
+    <div class="logo"><b>LINK</b><i class="dot"></i><b>LOG</b></div>
+    <nav id="nav"></nav>
+    <button class="acct" id="acctPc">게스트 · 이 기기에만 저장</button>
+  </aside>
+
+  <div>
+    <header class="topbar">
+      <div class="logo"><b>LINK</b><i class="dot"></i><b>LOG</b><em>&nbsp;BOOKMARKS</em></div>
+      <button class="acct" id="acctMo">게스트</button>
+    </header>
+
+    <main class="shell">
+      <!-- ============ 홈 ============ -->
+      <section class="tabpage" data-page="home">
+        <div class="sec"><h2>홈</h2><span>HOME</span><i class="grow"></i>
+          <button class="btn fill sm" id="addBtn">＋ 링크</button></div>
+        <div id="homeStat"></div>
+        <div id="homeWake"></div>
+        <div class="sec"><h2>자주 여는 것</h2><span>OFTEN</span></div>
+        <div id="homeOften"></div>
+        <div class="sec"><h2>최근 저장</h2><span>RECENT</span></div>
+        <div id="homeRecent"></div>
+      </section>
+
+      <!-- ============ 전체 ============ -->
+      <section class="tabpage hidden" data-page="all">
+        <div class="sec"><h2>전체</h2><span>ALL</span><i class="grow"></i>
+          <button class="btn fill sm" id="addBtn2">＋ 링크</button></div>
+        <div class="searchrow"><input id="q" placeholder="제목 · 주소 · 메모 검색"></div>
+        <div class="seg" id="useSeg">
+          <b class="on" data-v="all">전체</b><b data-v="일">일</b><b data-v="취향">취향</b>
+          <b data-v="도구">도구</b><b data-v="참고">참고</b>
+        </div>
+        <div class="chips" id="fieldChips"></div>
+        <div id="allBody"></div>
+      </section>
+
+      <!-- ============ 브랜드 ============ -->
+      <section class="tabpage hidden" data-page="brand">
+        <div class="sec"><h2>브랜드</h2><span>BRAND</span></div>
+        <div class="searchrow"><input id="bq" placeholder="브랜드명 · 주소 검색"></div>
+        <div class="chips" id="bcatChips"></div>
+        <div class="chips" id="bcountryChips"></div>
+        <div id="brandBody"></div>
+      </section>
+
+      <!-- ============ 정리 ============ -->
+      <section class="tabpage hidden" data-page="clean">
+        <div class="sec"><h2>정리</h2><span>CLEAN</span></div>
+        <div class="seg" id="cleanSeg">
+          <b class="on" data-v="import">가져오기</b><b data-v="dup">중복</b>
+          <b data-v="untag">미분류</b><b data-v="dead">죽은링크</b><b data-v="data">데이터</b>
+        </div>
+        <div id="cleanBody"></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="tabbar" id="tabbar"></div>
+<div class="mask" id="mask"></div>
+<div class="sheet" id="sheet"><div class="shd"><b id="shTitle"></b><span class="x" id="shX">닫기</span></div><div class="sbd" id="shBody"></div></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="filePick" accept=".html,.htm,.csv,.json" style="display:none">
+
+<script>
+/* ===================== 씨앗 데이터 (크롬 즐겨찾기) ===================== */
+const SEED = /*SEED_START*/[]/*SEED_END*/;
+
+/* ===================== 상태 ===================== */
+const LS='linklog_v1';
+const TABS=[['home','홈','HOME'],['all','전체','ALL'],['brand','브랜드','BRAND'],['clean','정리','CLEAN']];
+const USES=['일','취향','도구','참고'];
+const FIELDS=['원부자재','공장','브랜드','폰트','이미지','문서','금융','기타'];
+const USECLS={'일':'work','취향':'taste','도구':'tool','참고':'ref'};
+
+let S={v:1,links:[]};
+let tab='home', uf='all', ff='', q='', bq='', bcat='', bcountry='', cleanView='import';
+/* 한 번에 그리는 줄 수. 전부 그리면 파비콘 요청이 백 개 넘게 몰려 폰에서 느려진다 */
+const PAGE=60; let allLimit=PAGE, brandLimit=PAGE;
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2000); }
+
+function load(){
+  try{ const r=localStorage.getItem(LS); if(r){ const d=JSON.parse(r); if(d&&Array.isArray(d.links)){ S=d; return; } } }catch(e){}
+  S={v:1,links:SEED.map(normLink)};
+  save();
+}
+function save(){ try{ localStorage.setItem(LS,JSON.stringify(S)); }catch(e){ toast('저장 공간 부족'); } cloudPush(); }
+
+function normLink(l){
+  return {
+    id:l.id||uid(), title:l.title||'', url:l.url||'',
+    use:l.use||'참고', field:l.field||'기타', note:l.note||'',
+    added:l.added||Date.now(), opened:l.opened||0, opens:l.opens||0,
+    dead:!!l.dead, srcs:l.srcs||['크롬'],
+    bcat:l.bcat||'', bcountry:l.bcountry||'', bprice:l.bprice||''
+  };
+}
+
+/* ===================== URL 정규화 (중복 판정의 유일한 기준) ===================== */
+function normUrl(u){
+  try{
+    const x=new URL(String(u).trim());
+    const h=x.hostname.toLowerCase().replace(/^(www|m|mobile)\./,'');
+    const p=x.pathname.replace(/\/+$/,'').toLowerCase();
+    const keep=[];
+    x.searchParams.forEach((v,k)=>{ if(!/^(utm_|fbclid|gclid|igshid|ref$|src$)/i.test(k)) keep.push(k+'='+v); });
+    keep.sort();
+    return h+p+(keep.length?'?'+keep.join('&'):'');
+  }catch(e){ return String(u||'').trim().toLowerCase(); }
+}
+function domainOf(u){ try{ return new URL(u).hostname.replace(/^www\./,''); }catch(e){ return ''; } }
+function favUrl(u){ const d=domainOf(u); return d?('https://www.google.com/s2/favicons?domain='+encodeURIComponent(d)+'&sz=64'):''; }
+function daysAgo(ms){ return Math.floor((Date.now()-ms)/86400000); }
+/* 검색 대상 — 태그(용도·분야·브랜드 속성)까지 포함한다.
+   "폰트"로 검색했을 때 제목에 '폰트'가 없는 폰트 사이트도 나와야 하기 때문 */
+function hay(l){
+  return [l.title,l.url,l.note,l.use,l.field,l.bcat,l.bcountry,l.bprice].join(' ').toLowerCase();
+}
+
+/* ===================== 렌더 ===================== */
+function renderAllUI(){ renderNav(); renderHome(); renderAllTab(); renderBrand(); renderClean(); }
+
+function renderNav(){
+  document.getElementById('nav').innerHTML=TABS.map(t=>
+    `<b data-t="${t[0]}" class="${tab===t[0]?'on':''}">${t[1]}</b>`).join('');
+  document.getElementById('tabbar').innerHTML=TABS.map(t=>
+    `<b data-t="${t[0]}" class="${tab===t[0]?'on':''}">${t[1]}</b>`).join('');
+  document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('hidden',p.dataset.page!==tab));
+}
+function go(t){ tab=t; renderNav(); window.scrollTo(0,0); }
+
+function fico(l){
+  const f=favUrl(l.url), ch=esc((l.title||domainOf(l.url)||'?').trim().charAt(0).toUpperCase());
+  if(!f) return `<span class="fico txt">${ch}</span>`;
+  return `<img class="fico" src="${f}" alt="" loading="lazy" onerror="this.outerHTML='<span class=\\'fico txt\\'>${ch}</span>'">`;
+}
+function rowHtml(l){
+  const d=domainOf(l.url);
+  const srcs=(l.srcs||[]).map(s=>`<span class="src">${esc(s)}</span>`).join('');
+  return `<div class="lrow ${l.dead?'dead':''}" data-id="${l.id}">
+    ${fico(l)}
+    <div class="lmain">
+      <div class="lttl">${esc(l.title||d||l.url)}</div>
+      <div class="lsub">
+        <span class="tag ${USECLS[l.use]||'ref'}">${esc(l.use)}</span>
+        <span class="tag">${esc(l.field)}</span>
+        ${l.dead?'<span class="tag bad">안 열림</span>':''}
+        <span class="ell">${esc(d)}</span>${srcs}
+      </div>
+    </div>
+    <a class="lgo" href="${esc(l.url)}" target="_blank" rel="noopener" data-go="${l.id}">열기</a>
+  </div>`;
+}
+function listHtml(arr,emptyMsg){
+  if(!arr.length) return `<div class="empty">${emptyMsg||'없습니다'}</div>`;
+  return `<div class="llist">${arr.map(rowHtml).join('')}</div>`;
+}
+
+/* ---------- 홈 ---------- */
+function renderHome(){
+  const L=S.links;
+  const dead=L.filter(l=>l.dead).length, never=L.filter(l=>!l.opens).length;
+  document.getElementById('homeStat').innerHTML=
+    `<div class="stat4">
+      <div><b class="num">${L.length}</b><i>전체</i></div>
+      <div><b class="num">${L.filter(l=>l.use==='일').length}</b><i>일</i></div>
+      <div><b class="num">${never}</b><i>한번도 안 엶</i></div>
+      <div><b class="num">${dead}</b><i>안 열림</i></div>
+    </div>`;
+
+  /* 잠자는 링크 — 저장한 지 오래됐고 한 번도 안 연 것.
+     '도구'는 뺀다(Gmail·지도처럼 습관으로 여는 것들이라 여기 올라오면 기능이 무의미해짐) */
+  const sleep=L.filter(l=>!l.opens&&!l.dead&&l.use!=='도구').sort((a,b)=>a.added-b.added).slice(0,3);
+  document.getElementById('homeWake').innerHTML= sleep.length?
+    `<div class="wake">
+      <div class="wh"><b>잠자는 링크</b><span>SLEEPING · 저장만 하고 아직 안 연 것</span></div>
+      ${sleep.map(rowHtml).join('')}
+    </div>`:'';
+
+  const often=L.filter(l=>l.opens>0).sort((a,b)=>b.opens-a.opens||b.opened-a.opened).slice(0,8);
+  document.getElementById('homeOften').innerHTML=
+    listHtml(often,'아직 연 링크가 없습니다.<br>링크를 열면 여기에 자주 쓰는 순서로 쌓입니다.');
+
+  const recent=L.slice().sort((a,b)=>b.added-a.added).slice(0,8);
+  document.getElementById('homeRecent').innerHTML=listHtml(recent,'링크가 없습니다');
+}
+
+/* ---------- 전체 ---------- */
+function renderAllTab(){
+  const cnt={}; S.links.forEach(l=>{ cnt[l.field]=(cnt[l.field]||0)+1; });
+  document.getElementById('fieldChips').innerHTML=
+    `<span class="flab">분야</span>`+
+    `<b class="chip ${ff===''?'on':''}" data-f="">전체</b>`+
+    FIELDS.filter(f=>cnt[f]).map(f=>`<b class="chip ${ff===f?'on':''}" data-f="${f}">${f} ${cnt[f]}</b>`).join('');
+
+  const kw=q.trim().toLowerCase();
+  let arr=S.links.filter(l=>{
+    if(uf!=='all'&&l.use!==uf) return false;
+    if(ff&&l.field!==ff) return false;
+    if(kw&&!hay(l).includes(kw)) return false;
+    return true;
+  }).sort((a,b)=>b.opens-a.opens||b.added-a.added);
+
+  const shown=arr.slice(0,allLimit);
+  document.getElementById('allBody').innerHTML=
+    `<div class="sec"><span>${arr.length}개${arr.length>shown.length?' 중 '+shown.length+'개 표시':''}</span></div>`+
+    listHtml(shown,'조건에 맞는 링크가 없습니다')+
+    (arr.length>shown.length?`<button class="btn w" id="moreAll" style="margin-top:10px">더 보기 (${arr.length-shown.length}개 남음)</button>`:'');
+  const m=document.getElementById('moreAll');
+  if(m) m.onclick=()=>{ allLimit+=PAGE; renderAllTab(); };
+}
+
+/* ---------- 브랜드 ---------- */
+function brandLinks(){ return S.links.filter(l=>l.field==='브랜드'); }
+function renderBrand(){
+  const B=brandLinks();
+  const cats=[...new Set(B.map(l=>l.bcat).filter(Boolean))];
+  const countries=[...new Set(B.map(l=>l.bcountry).filter(Boolean))];
+  document.getElementById('bcatChips').innerHTML= cats.length?
+    `<span class="flab">속성</span><b class="chip ${bcat===''?'on':''}" data-bc="">전체</b>`+
+    cats.map(c=>`<b class="chip ${bcat===c?'on':''}" data-bc="${esc(c)}">${esc(c)}</b>`).join(''):'';
+  document.getElementById('bcountryChips').innerHTML= countries.length?
+    `<span class="flab">국가</span><b class="chip ${bcountry===''?'on':''}" data-bn="">전체</b>`+
+    countries.map(c=>`<b class="chip ${bcountry===c?'on':''}" data-bn="${esc(c)}">${esc(c)}</b>`).join(''):'';
+
+  const kw=bq.trim().toLowerCase();
+  const arr=B.filter(l=>{
+    if(bcat&&l.bcat!==bcat) return false;
+    if(bcountry&&l.bcountry!==bcountry) return false;
+    if(kw&&!hay(l).includes(kw)) return false;
+    return true;
+  }).sort((a,b)=>(a.title||'').localeCompare(b.title||''));
+
+  const body=document.getElementById('brandBody');
+  if(!B.length){
+    body.innerHTML=`<div class="empty">브랜드 링크가 아직 없습니다.<br><br>
+      노션 「브랜드 사이트」를 CSV로 내보내<br>정리 탭 → 가져오기에서 올리면<br>
+      속성 · 국가 · 금액대까지 그대로 들어옵니다.</div>
+      <div class="note"><b>크롬과 노션이 겹쳐도 괜찮습니다</b><br>
+      같은 주소면 새로 만들지 않고 기존 링크에 브랜드 정보만 채웁니다. 중복이 생기지 않습니다.</div>`;
+    return;
+  }
+  const bshown=arr.slice(0,brandLimit);
+  body.innerHTML=`<div class="sec"><span>${arr.length}개${arr.length>bshown.length?' 중 '+bshown.length+'개 표시':''}</span></div>`+
+    (bshown.length?`<div class="btab">${bshown.map(l=>{
+      const meta=[l.bcat,l.bcountry,l.bprice].filter(Boolean)
+        .map(x=>`<span class="tag">${esc(x)}</span>`).join('');
+      const srcs=(l.srcs||[]).map(s=>`<span class="src">${esc(s)}</span>`).join('');
+      return `<div class="brow ${l.dead?'dead':''}" data-id="${l.id}">
+        ${fico(l)}
+        <div class="lmain">
+          <div class="lttl">${esc(l.title||domainOf(l.url))}</div>
+          <div class="bmeta">${meta}${srcs}</div>
+          ${l.note?`<div class="lsub"><span class="ell">${esc(l.note)}</span></div>`:''}
+        </div>
+        <a class="lgo" href="${esc(l.url)}" target="_blank" rel="noopener" data-go="${l.id}">열기</a>
+      </div>`;
+    }).join('')}</div>`+
+    (arr.length>bshown.length?`<button class="btn w" id="moreBrand" style="margin-top:10px">더 보기 (${arr.length-bshown.length}개 남음)</button>`:'')
+    :`<div class="empty">조건에 맞는 브랜드가 없습니다</div>`);
+  const mb=document.getElementById('moreBrand');
+  if(mb) mb.onclick=()=>{ brandLimit+=PAGE; renderBrand(); };
+}
+
+/* ---------- 정리 ---------- */
+function dupGroups(){
+  const m={};
+  S.links.forEach(l=>{ const k=normUrl(l.url); (m[k]=m[k]||[]).push(l); });
+  return Object.keys(m).filter(k=>m[k].length>1).map(k=>m[k]);
+}
+function renderClean(){
+  document.querySelectorAll('#cleanSeg b').forEach(b=>b.classList.toggle('on',b.dataset.v===cleanView));
+  const body=document.getElementById('cleanBody');
+
+  if(cleanView==='import'){
+    body.innerHTML=`
+      <div class="sec"><h2>다른 곳에서 가져오기</h2><span>IMPORT</span></div>
+      <div class="dropzone" id="dz">파일을 여기에 끌어다 놓거나 눌러서 고르기<br>
+        <span style="font-size:10px">사파리·크롬 즐겨찾기 HTML · 노션 CSV · LINK.LOG 백업 JSON</span></div>
+      <div class="note">
+        <b>사파리</b><br>사파리 → 파일 → 내보내기 → 즐겨찾기… → 저장한 HTML을 올리세요.
+        아이폰 즐겨찾기도 iCloud로 합쳐져 있어 같이 들어옵니다.<br><br>
+        <b>노션 브랜드 사이트</b><br>노션 페이지 → 우측 상단 ··· → 내보내기 → 형식 CSV.
+        속성 · 국가 · 금액대 · description 컬럼을 알아서 찾아 넣습니다.<br><br>
+        <b>같은 주소는 합쳐집니다</b><br>이미 있는 주소면 새로 만들지 않고 정보만 채웁니다.
+        크롬에도 있고 노션에도 있던 브랜드가 한 줄로 합쳐집니다.
+      </div>`;
+    const dz=document.getElementById('dz');
+    dz.onclick=()=>document.getElementById('filePick').click();
+    dz.ondragover=e=>{e.preventDefault();dz.classList.add('drag')};
+    dz.ondragleave=()=>dz.classList.remove('drag');
+    dz.ondrop=e=>{ e.preventDefault(); dz.classList.remove('drag');
+      if(e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); };
+    return;
+  }
+
+  if(cleanView==='dup'){
+    const g=dupGroups();
+    if(!g.length){ body.innerHTML=`<div class="empty">중복된 주소가 없습니다.<br>사파리·노션을 가져온 뒤 다시 확인해 보세요.</div>`; return; }
+    body.innerHTML=`<div class="sec"><span>${g.length}묶음 · 총 ${g.reduce((n,x)=>n+x.length,0)}개</span></div>`+
+      g.map(grp=>`<div class="wake">
+        <div class="wh"><b class="ell">${esc(normUrl(grp[0].url))}</b>
+          <button class="btn sm" data-merge="${grp.map(x=>x.id).join(',')}">하나로 합치기</button></div>
+        ${grp.map(rowHtml).join('')}
+      </div>`).join('');
+    return;
+  }
+
+  if(cleanView==='untag'){
+    const arr=S.links.filter(l=>l.field==='기타');
+    body.innerHTML=`<div class="sec"><span>${arr.length}개 — 눌러서 분야를 정하세요</span></div>`+
+      listHtml(arr,'미분류가 없습니다. 전부 분류되어 있어요.');
+    return;
+  }
+
+  if(cleanView==='dead'){
+    const arr=S.links.filter(l=>l.dead);
+    body.innerHTML=`<div class="sec"><h2>안 열리는 링크</h2><span>DEAD</span></div>`+
+      listHtml(arr,'표시된 죽은 링크가 없습니다.')+
+      `<div class="note"><b>죽은 링크는 자동으로 지우지 않습니다</b><br>
+        브라우저 보안(CORS) 때문에 앱 안에서 전체 검사를 돌릴 수 없습니다.
+        검사는 따로 돌려서 결과를 표시해 드립니다. 지울지는 직접 정하세요.</div>`;
+    return;
+  }
+
+  /* data */
+  const never=S.links.filter(l=>!l.opens).length;
+  body.innerHTML=`
+    <div class="sec"><h2>계정 · 백업</h2><span>DATA</span></div>
+    <div class="kv"><div class="l">동기화</div><div class="v" id="syncState">확인 중…</div></div>
+    <button class="btn w" id="authBtn" style="margin-bottom:8px">로그인 / 로그아웃</button>
+    <button class="btn w" id="expBtn" style="margin-bottom:8px">백업 내려받기 (JSON)</button>
+    <div class="kv"><div class="l">현황</div><div class="v">전체 ${S.links.length}개 · 한 번도 안 연 것 ${never}개 · 중복 ${dupGroups().length}묶음</div></div>
+    <div class="note"><b>이 앱은 링크 보관함이 아니라 다시 꺼내 쓰는 도구입니다</b><br>
+      열 때마다 횟수가 쌓이고, 그 숫자가 홈의 "자주 여는 것" 순서를 만듭니다.
+      쌓아만 두고 안 보던 것들은 홈 맨 위 "잠자는 링크"로 계속 올라옵니다.</div>`;
+  document.getElementById('syncState').textContent = fbUser? (fbUser.email||'로그인됨')+' · 폰·PC 자동 동기화' : '로그인 안 됨 — 이 기기에만 저장됩니다';
+  document.getElementById('authBtn').onclick=openAuth;
+  document.getElementById('expBtn').onclick=exportJson;
+}
+
+/* ===================== 상세 / 편집 ===================== */
+function openSheet(title,html){
+  document.getElementById('shTitle').textContent=title;
+  document.getElementById('shBody').innerHTML=html;
+  document.getElementById('sheet').classList.add('on');
+  document.getElementById('mask').classList.add('on');
+}
+function closeSheet(){
+  document.getElementById('sheet').classList.remove('on');
+  document.getElementById('mask').classList.remove('on');
+  flushPendingCloud();
+}
+function openLink(id){
+  const l=S.links.find(x=>x.id===id); if(!l)return;
+  l.opens=(l.opens||0)+1; l.opened=Date.now(); save(); renderAllUI();
+}
+function openDetail(id){
+  const l=S.links.find(x=>x.id===id); if(!l)return;
+  const isBrand=l.field==='브랜드';
+  openSheet(l.title||domainOf(l.url),`
+    <div class="f"><label>제목</label><input id="e_title" value="${esc(l.title)}"></div>
+    <div class="f"><label>주소</label><input id="e_url" value="${esc(l.url)}"></div>
+    <div class="f"><label>용도</label><div class="pick" id="e_use">
+      ${USES.map(u=>`<b class="${l.use===u?'on':''}" data-v="${u}">${u}</b>`).join('')}</div></div>
+    <div class="f"><label>분야</label><div class="pick" id="e_field">
+      ${FIELDS.map(f=>`<b class="${l.field===f?'on':''}" data-v="${f}">${f}</b>`).join('')}</div></div>
+    ${isBrand?`<div class="f2">
+      <div class="f"><label>속성</label><input id="e_bcat" value="${esc(l.bcat)}"></div>
+      <div class="f"><label>국가</label><input id="e_bcountry" value="${esc(l.bcountry)}"></div>
+    </div>
+    <div class="f"><label>금액대</label><input id="e_bprice" value="${esc(l.bprice)}"></div>`:''}
+    <div class="f"><label>메모</label><textarea id="e_note">${esc(l.note)}</textarea></div>
+    <div class="kv"><div class="l">기록</div><div class="v">저장 ${daysAgo(l.added)}일 전 · 연 횟수 ${l.opens||0}번${l.opened?' · 마지막 '+daysAgo(l.opened)+'일 전':''}
+      ${(l.srcs||[]).length?'\n출처 '+l.srcs.join(', '):''}</div></div>
+    <div class="f2" style="margin-top:14px">
+      <button class="btn fill" id="e_save">저장</button>
+      <a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener" id="e_open">열기</a>
+    </div>
+    <div class="f2" style="margin-top:8px">
+      <button class="btn" id="e_dead">${l.dead?'살아있음으로 표시':'안 열림으로 표시'}</button>
+      <button class="btn danger" id="e_del">삭제</button>
+    </div>`);
+
+  document.getElementById('e_use').onclick=e=>{ const b=e.target.closest('b'); if(!b)return;
+    document.querySelectorAll('#e_use b').forEach(x=>x.classList.toggle('on',x===b)); };
+  document.getElementById('e_field').onclick=e=>{ const b=e.target.closest('b'); if(!b)return;
+    document.querySelectorAll('#e_field b').forEach(x=>x.classList.toggle('on',x===b)); };
+  document.getElementById('e_open').onclick=()=>{ openLink(id); };
+  document.getElementById('e_save').onclick=()=>{
+    l.title=document.getElementById('e_title').value.trim();
+    l.url=document.getElementById('e_url').value.trim();
+    const u=document.querySelector('#e_use b.on'), f=document.querySelector('#e_field b.on');
+    l.use=u?u.dataset.v:l.use; l.field=f?f.dataset.v:l.field;
+    l.note=document.getElementById('e_note').value;
+    if(document.getElementById('e_bcat')){
+      l.bcat=document.getElementById('e_bcat').value.trim();
+      l.bcountry=document.getElementById('e_bcountry').value.trim();
+      l.bprice=document.getElementById('e_bprice').value.trim();
+    }
+    save(); renderAllUI(); closeSheet(); toast('저장했습니다');
+  };
+  document.getElementById('e_dead').onclick=()=>{ l.dead=!l.dead; save(); renderAllUI(); closeSheet(); };
+  document.getElementById('e_del').onclick=()=>{
+    if(!confirm('이 링크를 지울까요?'))return;
+    S.links=S.links.filter(x=>x.id!==id); save(); renderAllUI(); closeSheet(); toast('지웠습니다');
+  };
+}
+function openAdd(){
+  openSheet('링크 추가',`
+    <div class="f"><label>주소</label><input id="a_url" placeholder="https://"></div>
+    <div class="f"><label>제목</label><input id="a_title" placeholder="비워두면 주소에서 자동"></div>
+    <div class="f"><label>용도</label><div class="pick" id="a_use">
+      ${USES.map((u,i)=>`<b class="${i===0?'on':''}" data-v="${u}">${u}</b>`).join('')}</div></div>
+    <div class="f"><label>분야</label><div class="pick" id="a_field">
+      ${FIELDS.map(f=>`<b class="${f==='기타'?'on':''}" data-v="${f}">${f}</b>`).join('')}</div></div>
+    <div class="f"><label>메모</label><textarea id="a_note"></textarea></div>
+    <button class="btn fill w" id="a_save">추가</button>`);
+  document.getElementById('a_use').onclick=e=>{ const b=e.target.closest('b'); if(!b)return;
+    document.querySelectorAll('#a_use b').forEach(x=>x.classList.toggle('on',x===b)); };
+  document.getElementById('a_field').onclick=e=>{ const b=e.target.closest('b'); if(!b)return;
+    document.querySelectorAll('#a_field b').forEach(x=>x.classList.toggle('on',x===b)); };
+  document.getElementById('a_save').onclick=()=>{
+    let url=document.getElementById('a_url').value.trim();
+    if(!url){ toast('주소를 입력하세요'); return; }
+    if(!/^https?:\/\//i.test(url)) url='https://'+url;
+    const dupe=S.links.find(l=>normUrl(l.url)===normUrl(url));
+    if(dupe){ toast('이미 있는 주소입니다'); closeSheet(); openDetail(dupe.id); return; }
+    S.links.push(normLink({
+      url, title:document.getElementById('a_title').value.trim()||domainOf(url),
+      use:(document.querySelector('#a_use b.on')||{dataset:{}}).dataset.v||'참고',
+      field:(document.querySelector('#a_field b.on')||{dataset:{}}).dataset.v||'기타',
+      note:document.getElementById('a_note').value, added:Date.now(), srcs:['직접']
+    }));
+    save(); renderAllUI(); closeSheet(); toast('추가했습니다');
+  };
+}
+
+/* ===================== 가져오기 ===================== */
+function readFile(file){
+  const r=new FileReader();
+  r.onload=()=>{
+    const txt=String(r.result), n=file.name.toLowerCase();
+    try{
+      if(n.endsWith('.csv')) importNotionCsv(txt);
+      else if(n.endsWith('.json')) importJson(txt);
+      else importNetscape(txt, /safari/i.test(n)?'사파리':'크롬');
+    }catch(e){ console.error(e); toast('파일을 읽지 못했습니다'); }
+  };
+  r.readAsText(file);
+}
+
+/* 사파리·크롬 즐겨찾기 HTML (둘 다 Netscape 형식) */
+function importNetscape(html,src){
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  const as=[...doc.querySelectorAll('a[href]')];
+  if(!as.length){ toast('즐겨찾기를 찾지 못했습니다'); return; }
+  let add=0, merge=0;
+  as.forEach(a=>{
+    const url=a.getAttribute('href')||'';
+    if(!/^https?:/i.test(url)) return;
+    const title=(a.textContent||'').trim()||domainOf(url);
+    let folder=''; let p=a.closest('dl');
+    if(p&&p.previousElementSibling) folder=(p.previousElementSibling.textContent||'').trim();
+    const ex=S.links.find(l=>normUrl(l.url)===normUrl(url));
+    if(ex){ if(!ex.srcs.includes(src)){ ex.srcs.push(src); merge++; } }
+    else{
+      const g=guess(title,url,folder);
+      S.links.push(normLink({url,title,use:g.use,field:g.field,added:Date.now(),srcs:[src]}));
+      add++;
+    }
+  });
+  save(); renderAllUI();
+  toast(src+' — 새로 '+add+'개, 이미 있던 것 '+merge+'개');
+}
+
+/* 노션 CSV */
+function parseCsv(text){
+  const rows=[]; let row=[], cur='', qt=false;
+  text=text.replace(/^﻿/,'');
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(qt){
+      if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else qt=false; }
+      else cur+=c;
+    } else if(c==='"') qt=true;
+    else if(c===','){ row.push(cur); cur=''; }
+    else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+    else if(c!=='\r') cur+=c;
+  }
+  if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r=>r.some(c=>String(c).trim()!==''));
+}
+function importNotionCsv(text){
+  const rows=parseCsv(text);
+  if(rows.length<2){ toast('CSV가 비어 있습니다'); return; }
+  const head=rows[0].map(h=>h.trim().toLowerCase());
+  const find=(...names)=>{ for(const n of names){ const i=head.findIndex(h=>h.includes(n)); if(i>=0)return i; } return -1; };
+  const iUrl=find('url','링크','주소','website');
+  const iName=find('브랜드','name','이름','제목','title');
+  const iCat=find('속성','category','분류','종류');
+  const iCountry=find('국가','country','지역');
+  const iPrice=find('금액','price','가격');
+  const iDesc=find('description','설명','메모','note');
+  if(iUrl<0){ toast('CSV에 url 컬럼을 찾지 못했습니다'); return; }
+  let add=0, merge=0;
+  rows.slice(1).forEach(r=>{
+    const url=(r[iUrl]||'').trim();
+    if(!/^https?:/i.test(url)) return;
+    const name=iName>=0?(r[iName]||'').trim():'';
+    const cat=iCat>=0?(r[iCat]||'').trim():'';
+    const country=iCountry>=0?(r[iCountry]||'').trim():'';
+    const price=iPrice>=0?(r[iPrice]||'').trim():'';
+    const desc=iDesc>=0?(r[iDesc]||'').trim():'';
+    const ex=S.links.find(l=>normUrl(l.url)===normUrl(url));
+    if(ex){
+      /* 중복: 새로 만들지 않고 브랜드 정보만 채운다 (크롬↔노션 중복 해소 지점) */
+      ex.field='브랜드'; if(ex.use==='참고') ex.use='취향';
+      if(name&&!ex.title) ex.title=name;
+      ex.bcat=ex.bcat||cat; ex.bcountry=ex.bcountry||country; ex.bprice=ex.bprice||price;
+      if(desc&&!ex.note) ex.note=desc;
+      if(!ex.srcs.includes('노션')) ex.srcs.push('노션');
+      merge++;
+    }else{
+      S.links.push(normLink({url,title:name||domainOf(url),use:'취향',field:'브랜드',
+        note:desc,bcat:cat,bcountry:country,bprice:price,added:Date.now(),srcs:['노션']}));
+      add++;
+    }
+  });
+  save(); renderAllUI(); go('brand');
+  toast('노션 — 새로 '+add+'개, 기존과 합침 '+merge+'개');
+}
+function importJson(text){
+  const d=JSON.parse(text);
+  if(!d||!Array.isArray(d.links)){ toast('LINK.LOG 백업 파일이 아닙니다'); return; }
+  let add=0;
+  d.links.forEach(x=>{ if(!S.links.some(l=>normUrl(l.url)===normUrl(x.url))){ S.links.push(normLink(x)); add++; } });
+  save(); renderAllUI(); toast('백업에서 '+add+'개 추가');
+}
+function exportJson(){
+  const blob=new Blob([JSON.stringify(S,null,1)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='linklog-backup.json'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+/* 자동 분류 */
+function guess(title,url,folder){
+  const t=((title||'')+' '+(folder||'')).toLowerCase(), d=domainOf(url).toLowerCase();
+  const has=(s,...ks)=>ks.some(k=>s.includes(k));
+  if(has(d,'docs.google','drive.google','mail.google','calendar.google','figma.com','firebase',
+        'chatgpt','claude.ai','gemini.google','notion.so','github','vercel','localhost'))
+    return {use:'도구',field:'문서'};
+  if(has(d,'hometax.go.kr','nts.go.kr')) return {use:'일',field:'금융'};
+  if(has(t,'공장','봉제','사가','시야게','나염','자수')) return {use:'일',field:'공장'};
+  if(has(t,'원단','부자재','동대문','원부자재','단추','지퍼')||has(d,'ddm-mall')) return {use:'일',field:'원부자재'};
+  if(has(t,'폰트','font')) return {use:'참고',field:'폰트'};
+  if(has(t,'이미지','사진','소스','무료','pinterest')||has(d,'pinterest','unsplash','pexels'))
+    return {use:'참고',field:'이미지'};
+  if(has(t,'브랜드','쇼핑','편집샵','스토어','shop','store')) return {use:'취향',field:'브랜드'};
+  return {use:'참고',field:'기타'};
+}
+
+/* ===================== Firebase 동기화 (fpf-manager 프로젝트 재활용) ===================== */
+const FB_CONFIG={apiKey:"AIzaSyCx84fnTSZl9_eTMaUkts0VCyIx4qrql2I",authDomain:"fpf-manager.firebaseapp.com",projectId:"fpf-manager",storageBucket:"fpf-manager.firebasestorage.app",messagingSenderId:"415966666310",appId:"1:415966666310:web:9c4bb75cd2594cc744b447"};
+let fbUser=null,fbAuth=null,fbDB=null,_rtUnsub=null,_pushT=null,_pushedTs='',_pendingCloud=null;
+
+function initFb(att){
+  att=att||0;
+  if(typeof firebase==='undefined'){ if(att<40)setTimeout(()=>initFb(att+1),150); else console.warn('Firebase SDK 로드 실패'); return; }
+  try{
+    firebase.initializeApp(FB_CONFIG); fbAuth=firebase.auth(); fbDB=firebase.firestore();
+    fbAuth.onAuthStateChanged(function(u){
+      fbUser=u; setAcct();
+      if(u) startCloudSync(); else stopCloudSync();
+      if(tab==='clean'&&cleanView==='data') renderClean();
+    });
+  }catch(e){ console.error('Firebase init',e); }
+}
+function setAcct(){
+  const pc=document.getElementById('acctPc'), mo=document.getElementById('acctMo');
+  pc.textContent=fbUser?((fbUser.email||'').split('@')[0]||'계정')+' · 동기화':'로그인하고 동기화';
+  mo.textContent=fbUser?((fbUser.email||'').split('@')[0]||'계정'):'로그인';
+  [pc,mo].forEach(b=>{ b.style.background=fbUser?'var(--ink)':''; b.style.color=fbUser?'var(--paper)':''; b.style.borderColor=fbUser?'var(--ink)':''; });
+}
+function cloudRef(){ return fbDB.collection('users').doc(fbUser.uid).collection('data').doc('linklog'); }
+function cloudPayload(){ return JSON.stringify({v:1,links:S.links}); }
+function cloudPush(){
+  if(!fbUser||!fbDB)return;
+  clearTimeout(_pushT);
+  _pushT=setTimeout(function(){
+    const ts=Date.now()+'_'+Math.floor(Math.random()*100000); _pushedTs=ts;
+    cloudRef().set({value:cloudPayload(),ts:ts,at:new Date().toISOString()})
+      .catch(function(e){ console.error('push',e); if(e.code==='permission-denied')toast('동기화 권한 오류 — 규칙 확인 필요'); });
+  },700);
+}
+function startCloudSync(){
+  if(!fbUser||!fbDB)return;
+  if(_rtUnsub){try{_rtUnsub()}catch(e){} _rtUnsub=null;}
+  let first=true;
+  _rtUnsub=cloudRef().onSnapshot(function(snap){
+    if(snap.metadata&&snap.metadata.hasPendingWrites)return;
+    if(!snap.exists){ cloudPush(); first=false; return; }
+    const d=snap.data(); if(!d||!d.value)return;
+    if(d.ts&&d.ts===_pushedTs)return;
+    let data; try{ data=JSON.parse(d.value); }catch(e){ return; }
+    if(!data||!Array.isArray(data.links))return;
+    if(isBusy()){ _pendingCloud=data; return; }
+    applyCloud(data,!first); first=false;
+  },function(e){ console.error('snap',e); if(e.code==='permission-denied')toast('동기화 권한 오류 — 규칙 확인 필요'); });
+}
+function stopCloudSync(){ if(_rtUnsub){try{_rtUnsub()}catch(e){} _rtUnsub=null;} }
+function isBusy(){
+  if(document.querySelector('.sheet.on'))return true;
+  const a=document.activeElement;
+  return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+}
+function flushPendingCloud(){ if(_pendingCloud&&!isBusy()){ const d=_pendingCloud; _pendingCloud=null; applyCloud(d,true); } }
+function applyCloud(data,notify){
+  S.links=(data.links||[]).map(normLink);
+  try{ localStorage.setItem(LS,JSON.stringify(S)); }catch(e){}
+  renderAllUI();
+  if(notify)toast('다른 기기 변경이 반영됐어요');
+}
+function openAuth(){
+  if(fbUser){
+    openSheet('내 계정',`
+      <div class="kv"><div class="l">로그인됨</div><div class="v">${esc(fbUser.email||'')}</div></div>
+      <p class="note">폰·PC 어디서나 같은 링크로 보입니다.<br>FPF · 머니 · 핏로그 · 잇로그와 같은 계정입니다.</p>
+      <button class="btn danger w" id="doOut" style="margin-top:12px">로그아웃</button>`);
+    document.getElementById('doOut').onclick=()=>{ fbAuth.signOut(); closeSheet(); toast('로그아웃했습니다'); };
+    return;
+  }
+  openSheet('로그인',`
+    <p class="note" style="margin-top:0">로그인하면 폰과 PC에서 같은 링크를 봅니다.<br>
+      FPF · 머니 · 핏로그와 같은 계정을 쓰세요.</p>
+    <div class="f"><label>이메일</label><input id="li_email" type="email" autocomplete="username"></div>
+    <div class="f"><label>비밀번호</label><input id="li_pw" type="password" autocomplete="current-password"></div>
+    <button class="btn fill w" id="doIn">로그인</button>
+    <button class="btn w" id="doUp" style="margin-top:8px">처음이면 — 계정 만들기</button>`);
+  const em=()=>document.getElementById('li_email').value.trim(), pw=()=>document.getElementById('li_pw').value;
+  document.getElementById('doIn').onclick=()=>{
+    if(!fbAuth){toast('연결 준비 중입니다');return;}
+    fbAuth.signInWithEmailAndPassword(em(),pw())
+      .then(()=>{closeSheet();toast('로그인했습니다');})
+      .catch(e=>toast('로그인 실패 — '+(e.code||'')));
+  };
+  document.getElementById('doUp').onclick=()=>{
+    if(!fbAuth){toast('연결 준비 중입니다');return;}
+    fbAuth.createUserWithEmailAndPassword(em(),pw())
+      .then(()=>{closeSheet();toast('계정을 만들었습니다');})
+      .catch(e=>toast('실패 — '+(e.code||'')));
+  };
+}
+
+/* ===================== 이벤트 ===================== */
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-t]'); if(t){ go(t.dataset.t); return; }
+
+  const go2=e.target.closest('[data-go]');
+  if(go2){ openLink(go2.dataset.go); return; }        /* 링크는 그대로 새 탭으로 열림 */
+
+  const row=e.target.closest('.lrow,.brow');
+  if(row&&row.dataset.id){ openDetail(row.dataset.id); return; }
+
+  const f=e.target.closest('[data-f]'); if(f){ ff=f.dataset.f; allLimit=PAGE; renderAllTab(); return; }
+  const bc=e.target.closest('[data-bc]'); if(bc){ bcat=bc.dataset.bc; brandLimit=PAGE; renderBrand(); return; }
+  const bn=e.target.closest('[data-bn]'); if(bn){ bcountry=bn.dataset.bn; brandLimit=PAGE; renderBrand(); return; }
+
+  const mg=e.target.closest('[data-merge]');
+  if(mg){
+    const ids=mg.dataset.merge.split(',');
+    const keep=S.links.find(l=>l.id===ids[0]); if(!keep)return;
+    ids.slice(1).forEach(id=>{
+      const x=S.links.find(l=>l.id===id); if(!x)return;
+      keep.title=keep.title||x.title; keep.note=keep.note||x.note;
+      keep.bcat=keep.bcat||x.bcat; keep.bcountry=keep.bcountry||x.bcountry; keep.bprice=keep.bprice||x.bprice;
+      keep.opens=(keep.opens||0)+(x.opens||0);
+      keep.added=Math.min(keep.added,x.added);
+      (x.srcs||[]).forEach(s=>{ if(!keep.srcs.includes(s))keep.srcs.push(s); });
+      S.links=S.links.filter(l=>l.id!==id);
+    });
+    save(); renderAllUI(); toast('합쳤습니다');
+    return;
+  }
+});
+document.getElementById('useSeg').addEventListener('click',e=>{
+  const b=e.target.closest('b'); if(!b)return;
+  uf=b.dataset.v; allLimit=PAGE;
+  document.querySelectorAll('#useSeg b').forEach(x=>x.classList.toggle('on',x===b));
+  renderAllTab();
+});
+document.getElementById('cleanSeg').addEventListener('click',e=>{
+  const b=e.target.closest('b'); if(!b)return; cleanView=b.dataset.v; renderClean();
+});
+document.getElementById('q').addEventListener('input',e=>{ q=e.target.value; allLimit=PAGE; renderAllTab(); });
+document.getElementById('bq').addEventListener('input',e=>{ bq=e.target.value; brandLimit=PAGE; renderBrand(); });
+document.getElementById('addBtn').onclick=openAdd;
+document.getElementById('addBtn2').onclick=openAdd;
+document.getElementById('acctPc').onclick=openAuth;
+document.getElementById('acctMo').onclick=openAuth;
+document.getElementById('shX').onclick=closeSheet;
+document.getElementById('mask').onclick=closeSheet;
+document.getElementById('filePick').onchange=e=>{ if(e.target.files[0]) readFile(e.target.files[0]); e.target.value=''; };
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>e.preventDefault());
+
+/* ===================== 시작 ===================== */
+load();
+renderAllUI();
+setAcct();
+initFb();
+</script>
+</body>
+</html>
