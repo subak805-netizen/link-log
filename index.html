@@ -213,6 +213,7 @@ a{color:inherit}
   <div>
     <header class="topbar">
       <div class="logo"><b>LINK</b><i class="dot"></i><b>LOG</b><em>&nbsp;BOOKMARKS</em></div>
+      <span id="verMo" style="font-size:8px;letter-spacing:.1em;color:var(--mut)"></span>
       <button class="acct" id="acctMo">게스트</button>
     </header>
 
@@ -284,6 +285,7 @@ const SEEDFOLDERS={
 };
 const isTodo=f=>/\(분류전\)/.test(f||'');
 
+const APP_VER='2026-08-17b';   /* 화면에 띄운다 — 옛 버전이 캐시돼 있는지 눈으로 확인하려고 */
 const LS='linklog_v1';
 const TABS=[['home','홈'],['all','전체'],['brand','브랜드'],['clean','정리']];
 
@@ -601,8 +603,17 @@ function renderClean(){
     <button class="btn w" id="authBtn" style="margin-bottom:8px">로그인 / 로그아웃</button>
     <button class="btn w" id="expBtn" style="margin-bottom:8px">백업 내려받기 (JSON)</button>
     <div class="kv"><div class="l">현황</div><div class="v">전체 ${S.links.length}개 · 폴더 ${foldersOf('').length}개 · 분류 필요 ${todo}개 · 중복 ${dupGroups().length}묶음</div></div>
+    <div class="kv"><div class="l">앱 버전</div><div class="v">${APP_VER}
+${S.links.length&&S.links.every(l=>l.folder==='기타'||l.folder==='미분류')?'\n※ 전부 미분류입니다 — 옛 버전에서 넣은 데이터일 수 있습니다. 아래 「전부 지우고 처음부터」 후 다시 불러오세요.':''}</div></div>
+    <button class="btn danger w" id="resetBtn">전부 지우고 처음부터</button>
     <div class="note"><b>이 앱은 링크 보관함이 아니라 다시 꺼내 쓰는 도구입니다</b><br>
       열 때마다 횟수가 쌓이고, 그 숫자가 홈의 "자주 여는 것" 순서를 만듭니다.</div>`;
+  document.getElementById('resetBtn').onclick=()=>{
+    if(!confirm('링크 '+S.links.length+'개를 전부 지웁니다.\n바탕화면 JSON 파일로 다시 불러올 수 있습니다.\n계속할까요?'))return;
+    if(!confirm('정말 지울까요? 되돌릴 수 없습니다.'))return;
+    S={v:2,links:[]}; save(); renderAllUI(); go('clean'); cleanView='import'; renderClean();
+    toast('전부 지웠습니다 — 파일을 다시 올려주세요');
+  };
   document.getElementById('syncState').textContent = fbUser? (fbUser.email||'로그인됨')+' · 폰·PC 자동 동기화' : '로그인 안 됨 — 이 기기에만 저장됩니다';
   document.getElementById('authBtn').onclick=openAuth;
   document.getElementById('expBtn').onclick=exportJson;
@@ -678,34 +689,60 @@ function openDetail(id){
     S.links=S.links.filter(x=>x.id!==id); save(); renderAllUI(); closeSheet(); toast('지웠습니다');
   };
 }
+/* 빠른 추가 — 주소만 붙여넣고 「추가」 한 번이면 끝.
+   폴더·제목을 다 물어보면 저장이 느려져서 결국 안 쓰게 된다.
+   폴더는 autoFolder가 정하고, 애매하면 (분류전)로 들어가 정리 탭에 모인다. */
 function openAdd(){
   openSheet('링크 추가',`
-    <div class="f"><label>주소</label><input id="a_url" placeholder="https://"></div>
-    <div class="f"><label>제목</label><input id="a_title" placeholder="비워두면 주소에서 자동"></div>
-    <div class="f"><label>대분류</label><div class="pick" id="a_group">
-      ${GROUPS.map((g,i)=>`<b class="${i===0?'on':''}" data-v="${esc(g)}">${esc(g)}</b>`).join('')}</div></div>
-    <div class="f"><label>폴더</label><div class="pick" id="a_folder">${folderPicker('')}</div></div>
-    <div class="f"><label>새 폴더 만들기</label><input id="a_newfolder"></div>
-    <div class="f"><label>메모</label><textarea id="a_note"></textarea></div>
-    <button class="btn fill w" id="a_save">추가</button>`);
+    <div class="f"><label>주소 — 붙여넣고 추가만 누르면 됩니다</label>
+      <input id="a_url" placeholder="https://" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <button class="btn fill w" id="a_save">추가</button>
+    <div id="a_guess" class="note" style="display:none"></div>
+    <button class="btn w sm" id="a_toggle" style="margin-top:10px">직접 정하기 (제목 · 폴더 · 메모)</button>
+    <div id="a_more" style="display:none;margin-top:12px">
+      <div class="f"><label>제목</label><input id="a_title" placeholder="비워두면 주소에서 자동"></div>
+      <div class="f"><label>대분류</label><div class="pick" id="a_group">
+        ${GROUPS.map(g=>`<b data-v="${esc(g)}">${esc(g)}</b>`).join('')}</div></div>
+      <div class="f"><label>폴더</label><div class="pick" id="a_folder">${folderPicker('')}</div></div>
+      <div class="f"><label>새 폴더 만들기</label><input id="a_newfolder"></div>
+      <div class="f"><label>메모</label><textarea id="a_note"></textarea></div>
+    </div>`);
   const one=(sel)=>{ document.getElementById(sel).onclick=e=>{ const b=e.target.closest('b'); if(!b)return;
     document.querySelectorAll('#'+sel+' b').forEach(x=>x.classList.toggle('on',x===b)); }; };
   one('a_group'); one('a_folder');
+  const urlEl=document.getElementById('a_url'), guess=document.getElementById('a_guess');
+  urlEl.focus();
+
+  /* 주소를 넣는 즉시 어느 폴더로 갈지 미리 보여준다 */
+  urlEl.addEventListener('input',()=>{
+    let u=urlEl.value.trim(); if(!u){ guess.style.display='none'; return; }
+    if(!/^https?:\/\//i.test(u)) u='https://'+u;
+    const f=autoFolder(u,'');
+    const dupe=S.links.find(l=>normUrl(l.url)===normUrl(u));
+    guess.style.display='block';
+    guess.innerHTML=dupe?`<b>이미 있는 주소입니다</b><br>${esc(dupe.title||'')} — ${esc(dupe.folder)}`
+      :`<b>${esc(f)}</b> 폴더로 들어갑니다<br>나중에 정리 탭에서 바꿀 수 있습니다`;
+  });
+  document.getElementById('a_toggle').onclick=()=>{
+    const m=document.getElementById('a_more');
+    m.style.display = m.style.display==='none' ? 'block' : 'none';
+  };
   document.getElementById('a_save').onclick=()=>{
-    let url=document.getElementById('a_url').value.trim();
-    if(!url){ toast('주소를 입력하세요'); return; }
+    let url=urlEl.value.trim();
+    if(!url){ toast('주소를 입력하세요'); urlEl.focus(); return; }
     if(!/^https?:\/\//i.test(url)) url='https://'+url;
     const dupe=S.links.find(l=>normUrl(l.url)===normUrl(url));
     if(dupe){ toast('이미 있는 주소입니다'); closeSheet(); openDetail(dupe.id); return; }
-    const g=(document.querySelector('#a_group b.on')||{dataset:{}}).dataset.v||'미분류';
-    const nf=document.getElementById('a_newfolder').value.trim();
-    const f=(document.querySelector('#a_folder b.on')||{dataset:{}}).dataset.v||'';
+    const title=(document.getElementById('a_title')||{}).value;
+    const nf=(document.getElementById('a_newfolder')||{}).value;
+    const gs=document.querySelector('#a_group b.on'), fs=document.querySelector('#a_folder b.on');
+    const folder=(nf||'').trim() || (fs?fs.dataset.v:'') || autoFolder(url,title||'');
     S.links.push(normLink({
-      url, title:document.getElementById('a_title').value.trim()||domainOf(url),
-      group:g, folder:nf||f||'미분류',
-      note:document.getElementById('a_note').value, added:Date.now(), srcs:['직접']
+      url, title:(title||'').trim()||domainOf(url),
+      group:(gs?gs.dataset.v:'')||groupOf(folder)||'미분류', folder:folder,
+      note:(document.getElementById('a_note')||{}).value||'', added:Date.now(), srcs:['직접']
     }));
-    save(); renderAllUI(); closeSheet(); toast('추가했습니다');
+    save(); renderAllUI(); closeSheet(); toast(folder+'에 추가했습니다');
   };
 }
 
@@ -989,6 +1026,7 @@ document.getElementById('filePick').onchange=e=>{ if(e.target.files[0]) readFile
 document.addEventListener('dragover',e=>e.preventDefault());
 document.addEventListener('drop',e=>e.preventDefault());
 
+const _vm=document.getElementById('verMo'); if(_vm) _vm.textContent=APP_VER;
 load(); renderAllUI(); setAcct(); initFb();
 </script>
 </body>
