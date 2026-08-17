@@ -111,6 +111,21 @@ a{color:inherit}
 .empty{border:2px dashed var(--beige);background:var(--panel);padding:26px 14px;text-align:center;
   color:var(--mut);font-size:11.5px;line-height:1.9;margin-top:var(--sp3)}
 
+/* 빠른 입력 (FPF 택배 시재 빠른입력 방식 — 창을 열지 않고 늘 떠 있는 한 줄) */
+.quick{border:2px solid var(--ink);background:var(--panel);padding:10px;margin-top:var(--sp3)}
+.quick .qtop{display:flex;align-items:baseline;gap:7px;margin-bottom:7px;flex-wrap:wrap}
+.quick .qtop b{font-size:12px;font-weight:800}
+.quick .qtop span{font-size:9px;letter-spacing:.12em;color:var(--mut)}
+.quick .qtop .grow{flex:1}
+.quick .qin{display:flex;gap:6px}
+.quick .qin input{flex:1;min-width:0;border:2px solid var(--ink);background:var(--paper);padding:9px 10px;font-size:12.5px}
+.quick .qin input:focus{outline:0;box-shadow:inset 0 0 0 2px var(--gold)}
+.quick .qin button{border:2px solid var(--ink);background:var(--ink);color:var(--paper);
+  padding:9px 12px;font-size:11.5px;font-weight:800;white-space:nowrap;letter-spacing:.03em}
+.quick .qhint{font-size:9.5px;color:var(--mut);margin-top:6px;line-height:1.7}
+.quick .qres{font-size:11px;margin-top:7px;padding:7px 9px;border:1px solid var(--beige);background:var(--paper);line-height:1.7}
+.quick .qres b{font-weight:800}
+
 .wake{border:2px solid var(--ink);background:var(--panel);margin-top:var(--sp3)}
 .wake .wh{padding:9px 11px;border-bottom:2px solid var(--ink);display:flex;justify-content:space-between;
   align-items:center;gap:8px;flex-wrap:wrap}
@@ -219,8 +234,8 @@ a{color:inherit}
 
     <main class="shell">
       <section class="tabpage" data-page="home">
-        <div class="sec"><h2>홈</h2><span>HOME</span><i class="grow"></i>
-          <button class="btn fill sm" id="addBtn">＋ 링크</button></div>
+        <div class="sec"><h2>홈</h2><span>HOME</span></div>
+        <div id="quickHome"></div>
         <div id="homeStat"></div>
         <div id="homeWake"></div>
         <div class="sec"><h2>자주 여는 것</h2><span>OFTEN</span></div>
@@ -230,11 +245,11 @@ a{color:inherit}
       </section>
 
       <section class="tabpage hidden" data-page="all">
-        <div class="sec"><h2>전체</h2><span>ALL</span><i class="grow"></i>
-          <button class="btn fill sm" id="addBtn2">＋ 링크</button></div>
+        <div class="sec"><h2>전체</h2><span>ALL</span></div>
+        <div id="quickAll"></div>
         <div class="searchrow"><input id="q" placeholder="제목 · 주소 · 폴더 · 메모 검색"></div>
         <div class="chips" id="groupChips"></div>
-        <div class="chips" id="folderChips"></div>
+        <div class="chips" id="folderPickRow"></div>
         <div id="allBody"></div>
       </section>
 
@@ -285,7 +300,7 @@ const SEEDFOLDERS={
 };
 const isTodo=f=>/\(분류전\)/.test(f||'');
 
-const APP_VER='2026-08-17b';   /* 화면에 띄운다 — 옛 버전이 캐시돼 있는지 눈으로 확인하려고 */
+const APP_VER='2026-08-17c';   /* 화면에 띄운다 — 옛 버전이 캐시돼 있는지 눈으로 확인하려고 */
 const LS='linklog_v1';
 const TABS=[['home','홈'],['all','전체'],['brand','브랜드'],['clean','정리']];
 
@@ -326,6 +341,31 @@ function foldersOf(group){
   const c={};
   S.links.forEach(l=>{ if(!group||l.group===group) c[l.folder]=(c[l.folder]||0)+1; });
   return Object.keys(c).sort((a,b)=>c[b]-c[a]).map(f=>[f,c[f]]);
+}
+/* 아직 제자리를 못 찾은 링크 — '기타'도 포함해야 한다.
+   옛 버전에서 넘어온 레코드는 folder가 '기타'로 들어와 있어 이걸 빼면 정리 탭에서 통째로 사라진다. */
+function needsSort(l){ return isTodo(l.folder)||l.folder==='미분류'||l.folder==='기타'; }
+
+/* ===================== 폴더 고르기 시트 ===================== */
+function openFolderPick(title, list, onPick){
+  openSheet(title,`
+    <div class="f"><input id="fp_q" placeholder="폴더 검색" autocomplete="off"></div>
+    <div id="fp_list" class="llist" style="margin-top:0"></div>`);
+  const draw=(kw)=>{
+    kw=(kw||'').trim().toLowerCase();
+    const rows=list.filter(x=>!kw||String(x[0]).toLowerCase().includes(kw));
+    document.getElementById('fp_list').innerHTML= rows.length?rows.map((x,i)=>
+      `<div class="lrow" data-fp="${i}" style="grid-template-columns:minmax(0,1fr) auto">
+        <div class="lmain"><div class="lttl">${esc(x[0]||'전체')}</div></div>
+        <span class="num" style="font-size:13px;color:var(--mut)">${x[1]}</span>
+      </div>`).join(''):`<div class="empty" style="margin:0">없습니다</div>`;
+    document.getElementById('fp_list').onclick=e=>{
+      const r=e.target.closest('[data-fp]'); if(!r)return;
+      onPick(rows[+r.dataset.fp][0]); closeSheet();
+    };
+  };
+  draw('');
+  document.getElementById('fp_q').addEventListener('input',e=>draw(e.target.value));
 }
 
 /* ===================== URL 정규화 (중복 판정의 유일한 기준) ===================== */
@@ -387,6 +427,7 @@ function listHtml(arr,emptyMsg){
 /* ---------- 홈 ---------- */
 function renderHome(){
   const L=S.links;
+  document.getElementById('quickHome').innerHTML=quickHtml('qh'); bindQuick('qh');
   if(!L.length){
     document.getElementById('homeStat').innerHTML=`
       <div class="wake" style="margin-top:var(--sp3)">
@@ -431,18 +472,26 @@ function renderHome(){
 /* ---------- 전체 (대분류 → 폴더 2단계) ---------- */
 let _folderIdx=[];
 function renderAllTab(){
+  document.getElementById('quickAll').innerHTML=quickHtml('qa'); bindQuick('qa');
   const gc={}; S.links.forEach(l=>{ gc[l.group]=(gc[l.group]||0)+1; });
   document.getElementById('groupChips').innerHTML=
     `<span class="flab">대분류</span>`+
     `<b class="chip g ${gf===''?'on':''}" data-g="">전체 ${S.links.length}</b>`+
     GROUPS.filter(g=>gc[g]).map(g=>`<b class="chip g ${gf===g?'on':''}" data-g="${esc(g)}">${esc(g)} ${gc[g]}</b>`).join('');
 
-  const fRow=document.getElementById('folderChips');
+  /* 폴더는 칩을 쭉 깔지 않는다 — 60개가 넘어가면 벽이 된다. 버튼 하나 + 목록창. */
+  const fRow=document.getElementById('folderPickRow');
   if(gf){
     _folderIdx=foldersOf(gf);
+    const n=ff?(_folderIdx.find(p=>p[0]===ff)||['',0])[1]:_folderIdx.reduce((s,p)=>s+p[1],0);
     fRow.innerHTML=`<span class="flab">폴더</span>`+
-      `<b class="chip ${ff===''?'on':''}" data-fi="-1">전체</b>`+
-      _folderIdx.map((p,i)=>`<b class="chip ${isTodo(p[0])?'todo':''} ${ff===p[0]?'on':''}" data-fi="${i}">${esc(p[0])} ${p[1]}</b>`).join('');
+      `<b class="chip g ${ff?'on':''}" id="fpBtn">${esc(ff||'전체')} ${n} ▾</b>`+
+      (ff?`<b class="chip" id="fpClear">해제</b>`:'');
+    document.getElementById('fpBtn').onclick=()=>openFolderPick('폴더 고르기',
+      [['',_folderIdx.reduce((s,p)=>s+p[1],0)]].concat(_folderIdx),
+      v=>{ ff=v; allLimit=PAGE; renderAllTab(); });
+    const fc=document.getElementById('fpClear');
+    if(fc) fc.onclick=()=>{ ff=''; allLimit=PAGE; renderAllTab(); };
   } else { _folderIdx=[]; fRow.innerHTML=''; }
 
   const kw=q.trim().toLowerCase();
@@ -468,9 +517,18 @@ function renderBrand(){
   const B=S.links.filter(l=>l.group==='옷·브랜드'||l.group==='주얼리');
   const c={}; B.forEach(l=>{ c[l.folder]=(c[l.folder]||0)+1; });
   _bfIdx=Object.keys(c).sort((a,b)=>c[b]-c[a]);
-  document.getElementById('bfolderChips').innerHTML= _bfIdx.length?
-    `<span class="flab">폴더</span><b class="chip ${bfolder===''?'on':''}" data-bfi="-1">전체</b>`+
-    _bfIdx.map((f,i)=>`<b class="chip ${isTodo(f)?'todo':''} ${bfolder===f?'on':''}" data-bfi="${i}">${esc(f)} ${c[f]}</b>`).join(''):'';
+  const brow=document.getElementById('bfolderChips');
+  if(_bfIdx.length){
+    const tot=_bfIdx.reduce((s,f)=>s+c[f],0);
+    brow.innerHTML=`<span class="flab">폴더</span>`+
+      `<b class="chip g ${bfolder?'on':''}" id="bfpBtn">${esc(bfolder||'전체')} ${bfolder?c[bfolder]:tot} ▾</b>`+
+      (bfolder?`<b class="chip" id="bfpClear">해제</b>`:'');
+    document.getElementById('bfpBtn').onclick=()=>openFolderPick('폴더 고르기',
+      [['',tot]].concat(_bfIdx.map(f=>[f,c[f]])),
+      v=>{ bfolder=v; brandLimit=PAGE; renderBrand(); });
+    const bc2=document.getElementById('bfpClear');
+    if(bc2) bc2.onclick=()=>{ bfolder=''; brandLimit=PAGE; renderBrand(); };
+  } else brow.innerHTML='';
 
   const countries=[...new Set(B.map(l=>l.bcountry).filter(Boolean))];
   document.getElementById('bcountryChips').innerHTML= countries.length?
@@ -557,14 +615,27 @@ function renderClean(){
   if(cleanView==='import'){
     body.innerHTML=`
       <div class="sec"><h2>다른 곳에서 가져오기</h2><span>IMPORT</span></div>
+      <div class="seg" id="impMode" style="margin-top:10px">
+        <b class="${_importMode==='merge'?'on':''}" data-im="merge">합치기</b>
+        <b class="${_importMode==='replace'?'on':''}" data-im="replace">지우고 이 파일로</b>
+      </div>
       <div class="dropzone" id="dz">파일을 여기에 끌어다 놓거나 눌러서 고르기<br>
         <span style="font-size:10px">LINK.LOG 백업 JSON · 사파리/크롬 즐겨찾기 HTML · 노션 CSV</span></div>
+      <div class="note" style="margin-top:8px">
+        <b>${_importMode==='replace'?'지우고 이 파일로':'합치기'}</b> —
+        ${_importMode==='replace'
+          ? '지금 것을 비우고 파일 내용으로 바꿉니다. 다만 <b>직접 추가한 링크·메모를 쓴 링크·열어본 링크는 지우지 않고 남깁니다.</b> 옛 버전에서 잘못 들어간 데이터를 한 번에 정리할 때 쓰세요.'
+          : '지금 것은 그대로 두고 파일에 있는 새 링크만 더합니다. 같은 주소는 합쳐집니다.'}
+      </div>
       <div class="note">
         <b>노션 브랜드 표</b><br>노션 페이지 → 우측 상단 ··· → 내보내기 → 형식 CSV.
         속성 · 국가 · 금액대 · description 컬럼을 알아서 찾아 넣습니다.<br><br>
         <b>같은 주소는 합쳐집니다</b><br>이미 있는 주소면 새로 만들지 않고 정보만 채웁니다.
         크롬에도 있고 노션에도 있던 브랜드가 한 줄로 합쳐집니다.
       </div>`;
+    document.getElementById('impMode').onclick=e=>{
+      const b=e.target.closest('b'); if(!b)return; _importMode=b.dataset.im; renderClean();
+    };
     const dz=document.getElementById('dz');
     dz.onclick=()=>document.getElementById('filePick').click();
     dz.ondragover=e=>{e.preventDefault();dz.classList.add('drag')};
@@ -689,6 +760,66 @@ function openDetail(id){
     S.links=S.links.filter(x=>x.id!==id); save(); renderAllUI(); closeSheet(); toast('지웠습니다');
   };
 }
+/* ===================== 빠른 입력 (늘 떠 있는 한 줄) =====================
+   FPF 택배 시재의 빠른입력과 같은 방식. 버튼 눌러 창을 여는 단계를 없앤다.
+   여러 주소를 쉼표·줄바꿈·공백으로 한 번에 넣을 수 있다. */
+function quickHtml(id){
+  return `<div class="quick">
+    <div class="qtop"><b>빠른 입력</b><span>주소 붙여넣고 추가</span><i class="grow"></i>
+      <button class="btn sm" data-openadd="1">직접 정하기</button></div>
+    <div class="qin">
+      <input id="${id}_in" placeholder="주소 붙여넣기 (여러 개는 쉼표로)"
+        autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url">
+      <button data-quick="${id}">＋ 추가</button>
+    </div>
+    <div class="qhint">붙여넣고 엔터만 눌러도 됩니다 · 폴더는 자동으로 정해지고 정리 탭에서 바꿀 수 있습니다</div>
+    <div class="qres" id="${id}_res" style="display:none"></div>
+  </div>`;
+}
+function parseUrls(s){
+  return String(s||'').split(/[\s,]+/).map(x=>x.trim()).filter(Boolean)
+    .map(u=>/^https?:\/\//i.test(u)?u:'https://'+u)
+    .filter(u=>/^https?:\/\/[^\s./]+\.[^\s/]+/i.test(u));
+}
+function quickPreview(id){
+  const inp=document.getElementById(id+'_in'), res=document.getElementById(id+'_res');
+  if(!inp||!res) return;
+  const us=parseUrls(inp.value);
+  if(!us.length){ res.style.display='none'; return; }
+  res.style.display='block';
+  if(us.length===1){
+    const dupe=S.links.find(l=>normUrl(l.url)===normUrl(us[0]));
+    res.innerHTML = dupe ? `이미 있는 주소입니다 — <b>${esc(dupe.folder)}</b>`
+      : `<b>${esc(autoFolder(us[0],''))}</b> 폴더로 들어갑니다`;
+  } else {
+    const nw=us.filter(u=>!S.links.some(l=>normUrl(l.url)===normUrl(u))).length;
+    res.innerHTML=`주소 <b>${us.length}개</b> — 새로 <b>${nw}개</b>, 이미 있는 것 ${us.length-nw}개`;
+  }
+}
+function quickAdd(id){
+  const inp=document.getElementById(id+'_in');
+  const us=parseUrls(inp.value);
+  if(!us.length){ toast('주소를 붙여넣어 주세요'); inp.focus(); return; }
+  let add=0, dup=0, last='';
+  us.forEach(url=>{
+    if(S.links.some(l=>normUrl(l.url)===normUrl(url))){ dup++; return; }
+    const f=autoFolder(url,'');
+    S.links.push(normLink({url,title:domainOf(url),folder:f,group:groupOf(f)||'미분류',
+      added:Date.now(),srcs:['직접']}));
+    add++; last=f;
+  });
+  save(); renderAllUI();
+  const el=document.getElementById(id+'_in'); if(el){ el.value=''; el.focus(); }
+  const res=document.getElementById(id+'_res'); if(res) res.style.display='none';
+  toast(add?(add===1?last+'에 추가했습니다':add+'개 추가했습니다'+(dup?' ('+dup+'개는 이미 있음)':''))
+           :'전부 이미 있는 주소입니다');
+}
+function bindQuick(id){
+  const inp=document.getElementById(id+'_in'); if(!inp) return;
+  inp.addEventListener('input',()=>quickPreview(id));
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); quickAdd(id); } });
+}
+
 /* 빠른 추가 — 주소만 붙여넣고 「추가」 한 번이면 끝.
    폴더·제목을 다 물어보면 저장이 느려져서 결국 안 쓰게 된다.
    폴더는 autoFolder가 정하고, 애매하면 (분류전)로 들어가 정리 탭에 모인다. */
@@ -747,13 +878,14 @@ function openAdd(){
 }
 
 /* ===================== 가져오기 ===================== */
+let _importMode='merge';
 function readFile(file){
   const r=new FileReader();
   r.onload=()=>{
     const txt=String(r.result), n=file.name.toLowerCase();
     try{
       if(n.endsWith('.csv')) importNotionCsv(txt);
-      else if(n.endsWith('.json')) importJson(txt);
+      else if(n.endsWith('.json')) importJson(txt,_importMode);
       else importNetscape(txt, /safari|사파리/i.test(n)?'사파리':'크롬');
     }catch(e){ console.error(e); toast('파일을 읽지 못했습니다'); }
   };
@@ -857,14 +989,41 @@ function importNotionCsv(text){
   save(); renderAllUI(); go('brand');
   toast('노션 — 새로 '+add+'개, 기존과 합침 '+merge+'개');
 }
-function importJson(text){
+/* 내가 손댄 링크인가 — 덮어쓰기에서 지우면 안 되는 것 */
+function isMine(l){
+  return (l.srcs||[]).includes('직접') || (l.opens||0)>0 || !!l.note || l.dead;
+}
+function importJson(text, mode){
   const d=JSON.parse(text);
   if(!d||!Array.isArray(d.links)){ toast('LINK.LOG 백업 파일이 아닙니다'); return; }
+  const incoming=d.links.map(normLink);
+  const inSet={}; incoming.forEach(x=>{ inSet[normUrl(x.url)]=1; });
+
+  if(mode==='replace'){
+    /* 파일에 없는 것 중 "내가 손댄 것"은 지우지 않고 남긴다.
+       직접 추가한 링크가 덮어쓰기로 사라지는 게 제일 뼈아프기 때문. */
+    const keep=S.links.filter(l=>!inSet[normUrl(l.url)]&&isMine(l));
+    const byUrl={}; S.links.forEach(l=>{ byUrl[normUrl(l.url)]=l; });
+    S.links=incoming.map(x=>{
+      const old=byUrl[normUrl(x.url)];
+      if(!old) return x;
+      /* 열어본 횟수·메모·죽은표시는 내 기록이니 살린다 */
+      x.opens=Math.max(x.opens||0,old.opens||0);
+      x.opened=Math.max(x.opened||0,old.opened||0);
+      x.note=x.note||old.note; x.dead=x.dead||old.dead;
+      (old.srcs||[]).forEach(s=>{ if(!x.srcs.includes(s))x.srcs.push(s); });
+      return x;
+    }).concat(keep);
+    save(); renderAllUI(); go('home');
+    toast('파일로 바꿨습니다 — '+incoming.length+'개'+(keep.length?' (내가 추가한 '+keep.length+'개는 유지)':''));
+    return;
+  }
+
   let add=0, merge=0;
-  d.links.forEach(x=>{
+  incoming.forEach(x=>{
     const ex=S.links.find(l=>normUrl(l.url)===normUrl(x.url));
     if(ex){ (x.srcs||[]).forEach(s=>{ if(!ex.srcs.includes(s))ex.srcs.push(s); }); merge++; }
-    else { S.links.push(normLink(x)); add++; }
+    else { S.links.push(x); add++; }
   });
   save(); renderAllUI(); go('home');
   toast('새로 '+add+'개, 이미 있던 것 '+merge+'개');
@@ -980,6 +1139,8 @@ document.addEventListener('click',e=>{
     return;
   }
 
+  const qk=e.target.closest('[data-quick]'); if(qk){ quickAdd(qk.dataset.quick); return; }
+  const oa=e.target.closest('[data-openadd]'); if(oa){ openAdd(); return; }
   const dt=e.target.closest('[data-detail]'); if(dt){ openDetail(dt.dataset.detail); return; }
 
   const row=e.target.closest('.lrow,.brow');
@@ -1016,8 +1177,6 @@ document.getElementById('cleanSeg').addEventListener('click',e=>{
 });
 document.getElementById('q').addEventListener('input',e=>{ q=e.target.value; allLimit=PAGE; renderAllTab(); });
 document.getElementById('bq').addEventListener('input',e=>{ bq=e.target.value; brandLimit=PAGE; renderBrand(); });
-document.getElementById('addBtn').onclick=openAdd;
-document.getElementById('addBtn2').onclick=openAdd;
 document.getElementById('acctPc').onclick=openAuth;
 document.getElementById('acctMo').onclick=openAuth;
 document.getElementById('shX').onclick=closeSheet;
