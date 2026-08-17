@@ -261,7 +261,7 @@ a{color:inherit}
 
     <main class="shell">
       <section class="tabpage" data-page="home">
-        <div class="sec"><h2>홈</h2><span>HOME</span></div>
+        <div class="sec"><h2>관리</h2><span>MANAGE</span></div>
         <div id="quickHome"></div>
         <div id="homeStat"></div>
         <div id="homeWake"></div>
@@ -272,7 +272,7 @@ a{color:inherit}
       </section>
 
       <section class="tabpage hidden" data-page="all">
-        <div class="sec"><h2>전체</h2><span>ALL</span></div>
+        <div class="sec"><h2>홈</h2><span>HOME</span></div>
         <div id="quickAll"></div>
         <div class="searchrow"><input id="q" placeholder="제목 · 주소 · 폴더 · 메모 검색"></div>
         <div class="chips" id="groupChips"></div>
@@ -339,12 +339,13 @@ function midsOf(g){ return Object.keys(TAX[g]||{}); }
 function seedFoldersOf(g,m){ return ((TAX[g]||{})[m])||[]; }
 const isTodo=f=>/\(분류전\)/.test(f||'');
 
-const APP_VER='2026-08-17d';   /* 화면에 띄운다 — 옛 버전이 캐시돼 있는지 눈으로 확인하려고 */
+const APP_VER='2026-08-17e';   /* 화면에 띄운다 — 옛 버전이 캐시돼 있는지 눈으로 확인하려고 */
 const LS='linklog_v1';
-const TABS=[['home','홈'],['all','전체'],['brand','브랜드'],['clean','정리']];
+/* 앱을 열면 트리(홈)가 먼저 — 저장보다 '빨리 꺼내 쓰기'가 이 앱의 목적 */
+const TABS=[['all','홈'],['brand','브랜드'],['home','관리'],['clean','정리']];
 
 let S={v:2,links:[]};
-let tab='home', gf='', ff='', tagF='', q='', bq='', bfolder='', bcountry='', cleanView='sort';
+let tab='all', gf='', ff='', tagF='', q='', bq='', bfolder='', bcountry='', cleanView='sort';
 const PAGE=60; let allLimit=PAGE, brandLimit=PAGE, sortLimit=20;
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
