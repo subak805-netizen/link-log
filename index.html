@@ -291,7 +291,7 @@ a{color:inherit}
       <section class="tabpage hidden" data-page="clean">
         <div class="sec"><h2>정리</h2><span>CLEAN</span></div>
         <div class="seg" id="cleanSeg">
-          <b class="on" data-v="sort">분류전</b><b data-v="import">가져오기</b>
+          <b class="on" data-v="folder">폴더</b><b data-v="auto">자동분류</b><b data-v="import">가져오기</b>
           <b data-v="dup">중복</b><b data-v="dead">죽은링크</b><b data-v="data">데이터</b>
         </div>
         <div id="cleanBody"></div>
@@ -339,13 +339,13 @@ function midsOf(g){ return Object.keys(TAX[g]||{}); }
 function seedFoldersOf(g,m){ return ((TAX[g]||{})[m])||[]; }
 const isTodo=f=>/\(분류전\)/.test(f||'');
 
-const APP_VER='2026-08-17e';   /* 화면에 띄운다 — 옛 버전이 캐시돼 있는지 눈으로 확인하려고 */
+const APP_VER='2026-08-17i';   /* 화면에 띄운다 — 옛 버전이 캐시돼 있는지 눈으로 확인하려고 */
 const LS='linklog_v1';
 /* 앱을 열면 트리(홈)가 먼저 — 저장보다 '빨리 꺼내 쓰기'가 이 앱의 목적 */
 const TABS=[['all','홈'],['brand','브랜드'],['home','관리'],['clean','정리']];
 
 let S={v:2,links:[]};
-let tab='all', gf='', ff='', tagF='', q='', bq='', bfolder='', bcountry='', cleanView='sort';
+let tab='all', gf='', ff='', tagF='', q='', bq='', bfolder='', bcountry='', cleanView='folder';
 const PAGE=60; let allLimit=PAGE, brandLimit=PAGE, sortLimit=20;
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -692,33 +692,82 @@ function renderClean(){
   document.querySelectorAll('#cleanSeg b').forEach(b=>b.classList.toggle('on',b.dataset.v===cleanView));
   const body=document.getElementById('cleanBody');
 
-  if(cleanView==='sort'){
-    const todo=S.links.filter(l=>isTodo(l.folder)||l.folder==='미분류');
-    if(!todo.length){ body.innerHTML=`<div class="empty">분류할 게 없습니다.<br>전부 폴더가 정해져 있어요.</div>`; return; }
-    const shown=todo.slice(0,sortLimit);
-    body.innerHTML=`<div class="sec"><h2>폴더 정하기</h2><span>${todo.length}개 남음</span></div>
-      <div class="note" style="margin-top:6px">아래 버튼을 한 번 누르면 그 폴더로 옮겨집니다.
-        「열기」로 사이트를 확인한 뒤 정하셔도 됩니다.</div>`+
-      shown.map(l=>{
-        const idx=_qsIdx.push(l.id)-1;
-        /* 같은 대분류 폴더만 버튼으로 — 카드마다 30개씩 깔리면 못 고른다.
-           다른 대분류로 옮길 땐 「다른 폴더」로 상세를 연다 */
-        const same=seedFoldersOf(l.group,l.mid).filter(f=>!isTodo(f));
-        const btn=(f)=>`<b data-qs="${idx}" data-qf="${esc(f)}">${esc(f)}</b>`;
-        return `<div class="qs">
-          <div class="qh">${fico(l)}
-            <div class="lmain"><div class="lttl">${esc(l.title||domainOf(l.url))}</div>
-              <div class="lsub"><span class="tag todo">${esc(l.folder)}</span><span class="ell">${esc(domainOf(l.url))}</span></div></div>
-            <a class="lgo" href="${esc(l.url)}" target="_blank" rel="noopener" data-go="${l.id}">열기</a>
-          </div>
-          <div class="qp"><div class="qlab">${esc(l.group)} 안에서</div>
-            <div class="pick">${same.map(btn).join('')}
-              <b data-detail="${l.id}" style="border-color:var(--ink);color:var(--ink)">다른 폴더…</b></div></div>
-        </div>`;
-      }).join('')+
-      (todo.length>shown.length?`<button class="btn w" id="moreSort" style="margin-top:10px">더 보기 (${todo.length-shown.length}개 남음)</button>`:'');
-    const ms=document.getElementById('moreSort');
-    if(ms) ms.onclick=()=>{ sortLimit+=20; renderClean(); };
+  if(cleanView==='folder'){
+    /* 폴더 관리 — 이름 바꾸기·합치기·옮기기. 폴더 안의 링크는 그대로 따라간다. */
+    const todo=S.links.filter(needsSort).length;
+    let h=`<div class="sec"><h2>폴더 관리</h2><span>폴더 ${foldersOf('').length}개</span></div>
+      <div class="note" style="margin-top:6px">이름을 바꾸거나 두 폴더를 합칠 수 있습니다.
+        <b>링크는 사라지지 않고 폴더를 따라 움직입니다.</b>${todo?'<br>제자리를 못 찾은 링크 '+todo+'개는 아래 「정리 필요」에 모아뒀습니다.':''}</div>`;
+    _fmIdx=[];
+    GROUPS.forEach(g=>{
+      const inG=S.links.filter(l=>l.group===g);
+      if(!inG.length) return;
+      h+=`<div class="tree" style="margin-top:12px">
+        <div class="tnode g1"><span class="nm">${esc(g)}</span><span class="cnt">${inG.length}</span></div>`;
+      midsOf(g).concat([...new Set(inG.map(l=>l.mid))]).filter((v,i,a)=>a.indexOf(v)===i).forEach(m=>{
+        const inM=inG.filter(l=>l.mid===m); if(!inM.length) return;
+        h+=`<div class="tnode g2"><span class="nm">${esc(m)}</span><span class="cnt">${inM.length}</span></div>`;
+        [...new Set(inM.map(l=>l.folder))].sort().forEach(f=>{
+          const n=inM.filter(l=>l.folder===f).length;
+          const i=_fmIdx.push({g:g,m:m,f:f})-1;
+          h+=`<div class="tnode g3" style="cursor:default">
+                <span class="nm">${esc(f)}</span><span class="cnt">${n}</span>
+                <span class="ed" data-fm="${i}" data-act="rename">이름</span>
+                <span class="ed" data-fm="${i}" data-act="merge">합치기</span>
+                <span class="ed" data-fm="${i}" data-act="move">옮기기</span>
+              </div>`;
+        });
+      });
+      h+=`</div>`;
+    });
+    if(todo) h+=`<button class="btn w" id="goSort" style="margin-top:12px">정리 필요한 링크 ${todo}개 보기</button>`;
+    body.innerHTML=h;
+    const gs=document.getElementById('goSort');
+    if(gs) gs.onclick=()=>{ q=''; tagF=''; go('all');
+      const el=document.getElementById('q'); if(el){ el.value='분류전'; q='분류전'; renderAllTab(); } };
+    return;
+  }
+
+  if(cleanView==='auto'){
+    const target = _autoAll ? S.links : S.links.filter(needsSort);
+    const props=[];
+    target.forEach(function(l){
+      const sg=suggest(l);
+      if(sg && !(sg.group===l.group && sg.mid===l.mid && sg.folder===l.folder)) props.push({l:l,s:sg});
+    });
+    const byF={};
+    props.forEach(function(p){ (byF[p.s.group+'§'+p.s.mid+'§'+p.s.folder]=byF[p.s.group+'§'+p.s.mid+'§'+p.s.folder]||[]).push(p); });
+    const keys=Object.keys(byF).sort(function(a,b){ return byF[b].length-byF[a].length; });
+    _autoIdx=byF;
+    body.innerHTML=`<div class="sec"><h2>자동 분류</h2><span>${props.length}개 제안</span></div>
+      <div class="seg" style="margin-top:6px">
+        <b class="${_autoAll?'':'on'}" data-au="todo">정리 필요한 것만</b>
+        <b class="${_autoAll?'on':''}" data-au="all">전체 다시 판정</b></div>
+      <div class="note" style="margin-top:8px">제목·주소·메모로 판정합니다.
+        브라우저 보안 때문에 <b>사이트 내용까지는 못 읽습니다</b> — 그건 앱 밖에서만 가능합니다.
+        묶음별로 확인하고 「적용」을 누르세요.
+        ${_autoAll?'<br><br><b style="color:var(--terra)">주의</b> — 지금 폴더는 사이트 내용까지 읽어서 정한 것입니다. 전체 다시 판정은 제목만 보는 판정이라 <b>더 나빠질 수 있습니다.</b> 묶음을 하나씩 확인하고 맞는 것만 적용하세요.':''}</div>`
+      + (keys.length ? keys.map(function(k){
+          const arr=byF[k], p=k.split('§');
+          return `<div class="tree" style="margin-top:10px">
+            <div class="tnode g1"><span class="nm">${esc(p[2])}</span><span class="cnt">${arr.length}</span></div>
+            <div class="tnode g2" style="cursor:default"><span class="nm" style="font-weight:700">${esc(p[0])} › ${esc(p[1])}</span>
+              <span class="ed" data-au2="${esc(k)}">이 ${arr.length}개 적용</span></div>
+            ${arr.slice(0,8).map(function(x){ return `<div class="tlink"><span class="fi txt">·</span>
+              <span class="t" style="cursor:default">${esc(x.l.title||domainOf(x.l.url))}</span>
+              <span class="dm">${esc(x.l.folder)} →</span></div>`; }).join('')}
+            ${arr.length>8?`<div class="tlink"><span class="fi txt">·</span><span class="t" style="cursor:default;color:var(--mut)">외 ${arr.length-8}개</span></div>`:''}
+          </div>`;
+        }).join('')
+        : `<div class="empty">제안할 게 없습니다.<br>제목·주소만으로는 더 정할 수 있는 게 없어요.</div>`)
+      + (keys.length>1?`<button class="btn fill w" id="autoAllBtn" style="margin-top:12px">전부 적용 (${props.length}개)</button>`:'');
+    const ab=document.getElementById('autoAllBtn');
+    if(ab) ab.onclick=function(){
+      if(!confirm(props.length+'개를 제안대로 옮깁니다. 계속할까요?'))return;
+      props.forEach(function(p){ p.l.group=p.s.group; p.l.mid=p.s.mid; p.l.folder=p.s.folder;
+        p.s.tags.forEach(function(t){ if(p.l.tags.indexOf(t)<0) p.l.tags.push(t); }); });
+      save(); renderAllUI(); toast(props.length+'개 정리했습니다');
+    };
     return;
   }
 
@@ -870,6 +919,79 @@ function openDetail(id){
     S.links=S.links.filter(x=>x.id!==id); save(); renderAllUI(); closeSheet(); toast('지웠습니다');
   };
 }
+
+/* ===================== 앱 안에서 도는 자동 분류 =====================
+   브라우저는 CORS 때문에 남의 사이트 본문을 못 읽는다. 그래서 제목·주소·메모·속성만 본다.
+   (사이트를 열어 본문까지 읽는 판정은 앱 밖에서만 가능하다 — 첫 정리 때 그렇게 했다) */
+const AUTORULES=[
+ ['강아지옷',3,['강아지','반려견','댕댕','펫샵','dogwear','반려동물']],
+ ['아동·유아',2,['유아','아동','baby','신생아','bebe','enfant','유아복','아기옷','newborn','toddler','infant','kidswear','아동복','키즈']],
+ ['키즈·주니어',2,['주니어','junior','초등','teen','tween','빅키즈']],
+ ['홈웨어',3,['홈웨어','잠옷','파자마','pajama','loungewear','실내복']],
+ ['수영복·이너',3,['수영복','swimwear','swimsuit','bikini','래쉬가드','비키니','란제리','lingerie','속옷']],
+ ['가방·신발',3,['가방 브랜드','핸드백','handbag','백팩','슈즈','sneaker','신발 브랜드','가죽가방']],
+ ['주얼리',3,['주얼리','jewelry','jewellery','악세사리','악세서리','귀걸이','목걸이']],
+ ['코스메틱',3,['화장품','코스메틱','cosmetic','스킨케어','skincare','뷰티','메이크업']],
+ ['컨템포러리·디자이너',1,['컨템포러리','contemporary','디자이너','미니멀','minimal']],
+ ['빈티지·프렌치·에스닉',1,['빈티지','vintage','프렌치','french','에스닉','ethnic','보헤미안','boheme']],
+ ['원단',3,['원단','fabric','textile','텍스타일','린넨']],
+ ['부자재·라벨',3,['부자재','라벨','label','단추','지퍼','zipper','재봉실','우븐라벨']],
+ ['공장·봉제',3,['봉제','공장','의류공장','생산공장','제조공장','샘플실','패턴실','임가공','일감','오더']],
+ ['니트·편직',3,['니트','knit','편직','스웨터','횡편']],
+ ['프린팅·자수·가공',3,['자수','나염','프린팅','전사','실크스크린','염색','워싱','embroidery']],
+ ['도매시장',3,['도매','동대문','남대문','사입','도매시장']],
+ ['외주·견적',3,['외주','견적','프리랜서','크몽','아웃소싱']],
+ ['매거진·트렌드',2,['매거진','magazine','트렌드','패션위크','runway','wwd','vogue','칼럼','기사']],
+ ['블로그·패션',2,['패션 블로그','코디','스타일링','룩북']],
+ ['블로그·그래픽',2,['일러스트','이모티콘','굿즈']],
+ 
+ ['글감·카피',3,['글감','카피라이팅','캘리그라피','명언','작명']],
+ ['로고·그래픽',3,['로고 제작','로고 디자인','logo design','브랜딩','그래픽 디자인','아이덴티티']],
+ ['폰트',3,['폰트','font','서체','타이포','typeface']],
+ ['이미지·무료',3,['무료 이미지','저작권 없는','stock photo','목업','mockup','아이콘','벡터','pinterest','unsplash','pexels']],
+ ['스마트스토어',4,['smartstore.naver']],
+ ['플랫폼·몰',3,['무신사','29cm','zalando','ssfshop','wconcept','오늘의집','쿠팡','ssense','shopbop','mytheresa','net-a-porter','mrporter','revolve','farfetch']],
+ ['편집샵',2,['편집샵','편집숍','셀렉트샵','select shop','concept store']],
+ ['세무·행정',3,['홈택스','국세청','세무','세금','사업자등록','부가세']],
+ ['배송·물류',3,['택배','배송','퀵','물류','운송','송장','kakaomobility']],
+ ['마케팅·분석',3,['키워드','검색량','seo','마케팅','광고','상위노출','홈페이지 제작','창업']],
+ ['문서·드라이브',3,['docs.google','sheets','drive.google','드라이브','notion.so','figma','피그마']],
+ ['AI·검색',3,['chatgpt','claude.ai','gemini','genspark','인공지능']],
+ ['내 앱',4,['github.io','localhost','fit.log','eat.log','link.log','fpf']],
+ ['인테리어',3,['인테리어','interior','가구','furniture','리빙','홈데코','조명']],
+ ['요리',3,['레시피','recipe','요리','쿠킹']],
+ ['물생활',3,['어항','수족관','물생활','아쿠아','aquarium','수초']],
+ ['건강·운동',3,['헬스','운동','필라테스','요가','다이어트','영양제']],
+ ['캠핑',3,['캠핑','camping','텐트','백패킹']],
+ ['아웃도어·데일리',1,['아웃도어','outdoor','데일리','캐주얼','casual','일상복','티셔츠','데님']],
+];
+const AUTOTAGS=[['프렌치',['프렌치','french']],['빈티지',['빈티지','vintage','레트로']],
+ ['에스닉',['에스닉','ethnic','보헤미안','boheme']],['컨템포러리',['컨템포러리','contemporary']],
+ ['미니멀',['미니멀','minimal']],['스트릿',['스트릿','street']],['캐주얼',['캐주얼','casual']],
+ ['오가닉',['오가닉','organic','친환경','sustainable']]];
+function isKor(u){ return /(\.kr|cafe24\.com|naver\.com)(\/|$)/i.test(u||''); }
+const BLOGHOST=['blog.naver','cafe.naver','brunch.co','tistory','blogspot','velog'];
+function suggest(l){
+  const txt=[l.title,l.url,l.note,l.bcat,l.bcountry].join(' ').toLowerCase();
+  let best=null,bs=0;
+  AUTORULES.forEach(function(r){
+    const hit=r[2].filter(function(k){ return txt.indexOf(k)>=0; }).length;
+    if(hit){ const sc=r[1]*10+hit; if(sc>bs){ best=r[0]; bs=sc; } }
+  });
+  /* 네이버 카페·블로그 주소는 예비 규칙 — 내용 키워드가 하나도 안 걸렸을 때만 쓴다.
+     안 그러면 '중국의류공장 … : 네이버 카페' 같은 글이 공장에서 블로그로 끌려간다. */
+  if(!best && BLOGHOST.some(function(h){ return txt.indexOf(h)>=0; })) best='블로그·일상';
+  if(!best) return null;
+  let g,m;
+  if(best==='편집샵'||best==='플랫폼·몰'||best==='스마트스토어'||best==='직구몰'){
+    g='04_쇼핑처'; m=isKor(l.url)?'01_국내':'02_해외';
+    if(best==='플랫폼·몰'&&m==='02_해외') best='직구몰';
+    if(best==='스마트스토어') m='01_국내';
+  } else { const p=placeOf(best); g=p[0]; m=p[1]; }
+  const tags=AUTOTAGS.filter(function(t){ return t[1].some(function(k){ return txt.indexOf(k)>=0; }); }).map(function(t){ return t[0]; });
+  return {group:g, mid:m, folder:best, tags:tags, score:bs};
+}
+
 /* ===================== 빠른 입력 (늘 떠 있는 한 줄) =====================
    FPF 택배 시재의 빠른입력과 같은 방식. 버튼 눌러 창을 여는 단계를 없앤다.
    여러 주소를 쉼표·줄바꿈·공백으로 한 번에 넣을 수 있다. */
@@ -1249,6 +1371,18 @@ document.addEventListener('click',e=>{
     return;
   }
 
+  const au=e.target.closest('[data-au]');
+  if(au){ _autoAll=(au.dataset.au==='all'); renderClean(); return; }
+  const au2=e.target.closest('[data-au2]');
+  if(au2){
+    const arr=_autoIdx[au2.dataset.au2]||[];
+    arr.forEach(function(p){ p.l.group=p.s.group; p.l.mid=p.s.mid; p.l.folder=p.s.folder;
+      p.s.tags.forEach(function(t){ if(p.l.tags.indexOf(t)<0) p.l.tags.push(t); }); });
+    save(); renderAllUI(); toast(arr.length+'개 옮겼습니다');
+    return;
+  }
+  const fmb=e.target.closest('[data-fm]');
+  if(fmb){ openFolderManage(+fmb.dataset.fm, fmb.dataset.act); return; }
   const qk=e.target.closest('[data-quick]'); if(qk){ quickAdd(qk.dataset.quick); return; }
   const oa=e.target.closest('[data-openadd]'); if(oa){ openAdd(); return; }
   const dt=e.target.closest('[data-detail]'); if(dt){ openDetail(dt.dataset.detail); return; }
@@ -1282,6 +1416,38 @@ document.addEventListener('click',e=>{
     return;
   }
 });
+let _fmIdx=[], _autoIdx={}, _autoAll=false;
+function folderCount(g,m,f){ return S.links.filter(l=>l.group===g&&l.mid===m&&l.folder===f).length; }
+function applyFolder(g,m,f,ng,nm,nf){
+  let n=0;
+  S.links.forEach(l=>{ if(l.group===g&&l.mid===m&&l.folder===f){ l.group=ng; l.mid=nm; l.folder=nf; n++; } });
+  save(); renderAllUI(); toast(n+'개를 '+nf+'(으)로 옮겼습니다');
+}
+function openFolderManage(i,act){
+  const t=_fmIdx[i]; if(!t) return;
+  const n=folderCount(t.g,t.m,t.f);
+  if(act==='rename'){
+    const nv=prompt('폴더 이름 바꾸기 ('+n+'개)\n\n'+t.f+' →', t.f);
+    if(nv===null) return;
+    const v=nv.trim(); if(!v||v===t.f) return;
+    applyFolder(t.g,t.m,t.f, t.g,t.m,v);
+    return;
+  }
+  /* 합치기·옮기기 — 목적지를 목록에서 고른다 */
+  const dest=[];
+  GROUPS.forEach(g=>midsOf(g).forEach(m=>seedFoldersOf(g,m).forEach(f=>{
+    if(g===t.g&&m===t.m&&f===t.f) return;
+    dest.push([g+' › '+m+' › '+f, folderCount(g,m,f), g,m,f]);
+  })));
+  S.links.forEach(l=>{
+    if(l.group===t.g&&l.mid===t.m&&l.folder===t.f) return;
+    if(!dest.some(d=>d[2]===l.group&&d[3]===l.mid&&d[4]===l.folder))
+      dest.push([l.group+' › '+l.mid+' › '+l.folder, folderCount(l.group,l.mid,l.folder), l.group,l.mid,l.folder]);
+  });
+  openFolderPick((act==='merge'?'어느 폴더에 합칠까요':'어디로 옮길까요')+' — '+t.f+' '+n+'개',
+    dest.map(d=>[d[0],d[1]]),
+    (label)=>{ const d=dest.find(x=>x[0]===label); if(d) applyFolder(t.g,t.m,t.f, d[2],d[3],d[4]); });
+}
 document.getElementById('cleanSeg').addEventListener('click',e=>{
   const b=e.target.closest('b'); if(!b)return; cleanView=b.dataset.v; sortLimit=20; renderClean();
 });
