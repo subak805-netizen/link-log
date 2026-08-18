@@ -152,6 +152,12 @@ a{color:inherit}
 .tlink .ed{flex:none;font-size:10px;color:var(--mut);border:1px solid var(--beige);padding:2px 5px;cursor:pointer}
 .tlink.dead .t{opacity:.45;text-decoration:line-through}
 .tagrow{display:flex;flex-wrap:wrap;gap:4px;margin-top:var(--sp2);align-items:center}
+.tnode.over{box-shadow:inset 0 0 0 3px var(--gold);background:var(--dim)}
+.tlink[draggable]{cursor:grab}
+.tlink.dragging{opacity:.4}
+.tnode .mk{flex:none;font-size:10px;color:var(--mut);border:1px solid var(--beige);padding:2px 6px;cursor:pointer;margin-left:4px}
+.tnode.g1 .mk{color:var(--paper);border-color:rgba(255,255,255,.4)}
+.tnode .mk:hover{background:var(--gold);color:var(--ink);border-color:var(--gold)}
 
 .wake{border:2px solid var(--ink);background:var(--panel);margin-top:var(--sp3)}
 .wake .wh{padding:9px 11px;border-bottom:2px solid var(--ink);display:flex;justify-content:space-between;
@@ -291,7 +297,7 @@ a{color:inherit}
       <section class="tabpage hidden" data-page="clean">
         <div class="sec"><h2>정리</h2><span>CLEAN</span></div>
         <div class="seg" id="cleanSeg">
-          <b class="on" data-v="folder">폴더</b><b data-v="auto">자동분류</b><b data-v="import">가져오기</b>
+          <b class="on" data-v="folder">폴더</b><b data-v="import">가져오기</b>
           <b data-v="dup">중복</b><b data-v="dead">죽은링크</b><b data-v="data">데이터</b>
         </div>
         <div id="cleanBody"></div>
@@ -333,18 +339,18 @@ const TAX={
  '06_살림·취미':{'01_라이프':['인테리어','요리','물생활'],
                  '02_건강·레저':['건강·운동','캠핑']},
 };
-const GROUPS=Object.keys(TAX);
+const GROUPS=Object.keys(TAX).concat(['미분류']);
 const STYLES=['프렌치','빈티지','에스닉','보헤미안','컨템포러리','미니멀','스트릿','캐주얼','오가닉','니치'];
-function midsOf(g){ return Object.keys(TAX[g]||{}); }
-function seedFoldersOf(g,m){ return ((TAX[g]||{})[m])||[]; }
+function midsOf(g){ return g==='미분류'?['미분류']:Object.keys(TAX[g]||{}); }
+function seedFoldersOf(g,m){ return g==='미분류'?['미분류']:(((TAX[g]||{})[m])||[]); }
 const isTodo=f=>/\(분류전\)/.test(f||'');
 
-const APP_VER='2026-08-17j';   /* 화면에 띄운다 — 옛 버전이 캐시돼 있는지 눈으로 확인하려고 */
+const APP_VER='2026-08-17l';   /* 화면에 띄운다 — 옛 버전이 캐시돼 있는지 눈으로 확인하려고 */
 const LS='linklog_v1';
 /* 앱을 열면 트리(홈)가 먼저 — 저장보다 '빨리 꺼내 쓰기'가 이 앱의 목적 */
 const TABS=[['all','홈'],['brand','브랜드'],['home','관리'],['clean','정리']];
 
-let S={v:2,links:[]};
+let S={v:2,links:[],folders:[]};
 let tab='all', gf='', ff='', tagF='', q='', bq='', bfolder='', bcountry='', cleanView='folder';
 const PAGE=60; let allLimit=PAGE, brandLimit=PAGE, sortLimit=20;
 
@@ -353,20 +359,19 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;'
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2000); }
 
 function load(){
-  try{ const r=localStorage.getItem(LS); if(r){ const d=JSON.parse(r); if(d&&Array.isArray(d.links)){ S={v:2,links:d.links.map(normLink)}; return; } } }catch(e){}
-  S={v:2,links:SEED.map(normLink)}; save();
+  try{ const r=localStorage.getItem(LS); if(r){ const d=JSON.parse(r); if(d&&Array.isArray(d.links)){ S={v:2,links:d.links.map(normLink),folders:Array.isArray(d.folders)?d.folders:[]}; return; } } }catch(e){}
+  S={v:2,links:SEED.map(normLink),folders:[]}; save();
 }
 function save(){ try{ localStorage.setItem(LS,JSON.stringify(S)); }catch(e){ toast('저장 공간 부족'); } cloudPush(); }
 
 function normLink(l){
   let group=l.group, mid=l.mid, folder=l.folder||l.field;
   /* 옛 체계에서 올라온 레코드도 새 자리에 앉힌다 */
-  if(!GROUPS.includes(group)||!folder){
-    const p=placeOf(folder||'');
-    group=p[0]; mid=p[1]; folder=p[2];
-  } else if(!mid||!seedFoldersOf(group,mid).length){
-    mid=midOf(group,folder)||midsOf(group)[0];
-  }
+  if(group&&mid&&folder){ /* 이미 자리가 있으면 그대로 — 사용자가 만든 폴더 포함 */ }
+  else if(folder){ const p=placeOf(folder); group=group||p[0]; mid=mid||p[1]; }
+  else { group='미분류'; mid='미분류'; folder='미분류'; }
+  /* 옛 체계 자리 (기타·분류전) 는 미분류로 */
+  if(/\(분류전\)$/.test(folder)||folder==='기타'){ group='미분류'; mid='미분류'; folder='미분류'; }
   return {
     id:l.id||uid(), title:l.title||'', url:l.url||'',
     group:group, mid:mid, folder:folder, note:l.note||'',
@@ -384,7 +389,8 @@ function midOf(g,folder){
 /* 폴더 이름만 알 때 자리를 찾아준다 */
 function placeOf(folder){
   for(const g of GROUPS){ const m=midOf(g,folder); if(m) return [g,m,folder]; }
-  return ['01_브랜드','01_의류·타겟','아웃도어·데일리'];
+  /* 자리를 모르면 아무 폴더에 억지로 넣지 않는다 — 미분류에 두고 사용자가 끌어다 놓는다 */
+  return ['미분류','미분류',folder||'미분류'];
 }
 function groupOf(folder){ return placeOf(folder)[0]; }
 /* 실제 데이터에 있는 폴더 목록 (개수 많은 순) */
@@ -505,13 +511,7 @@ function renderHome(){
       <div><b class="num">${never}</b><i>한번도 안 엶</i></div>
     </div>`;
 
-  /* 잠자는 링크 — '일 도구'는 뺀다(습관으로 여는 것이 올라오면 무의미) */
-  const sleep=L.filter(l=>!l.opens&&!l.dead&&l.group!=='일 도구').sort((a,b)=>a.added-b.added).slice(0,3);
-  document.getElementById('homeWake').innerHTML= sleep.length?
-    `<div class="wake">
-      <div class="wh"><b>잠자는 링크</b><span>SLEEPING · 저장만 하고 아직 안 연 것</span></div>
-      ${sleep.map(rowHtml).join('')}
-    </div>`:'';
+  document.getElementById('homeWake').innerHTML='';
 
   const often=L.filter(l=>l.opens>0).sort((a,b)=>b.opens-a.opens||b.opened-a.opened).slice(0,8);
   document.getElementById('homeOften').innerHTML=
@@ -530,7 +530,7 @@ function treeLinkRow(l){
   const i=_tIdx.push(l.id)-1;
   const d=domainOf(l.url), ch=esc((l.title||d||'?').trim().charAt(0).toUpperCase());
   const f=favUrl(l.url);
-  return `<div class="tlink ${l.dead?'dead':''}">
+  return `<div class="tlink ${l.dead?'dead':''}" draggable="true" data-dragl="${l.id}">
     ${f?`<img class="fi" src="${f}" alt="" loading="lazy" onerror="this.outerHTML='<span class=\\'fi txt\\'>${ch}</span>'">`
        :`<span class="fi txt">${ch}</span>`}
     <a class="t" href="${esc(l.url)}" target="_blank" rel="noopener" data-go="${l.id}"
@@ -538,6 +538,25 @@ function treeLinkRow(l){
     <span class="dm">${esc(d)}</span>
     <span class="ed" data-detail="${l.id}">…</span>
   </div>`;
+}
+function userFolders(){ return S.folders||[]; }   /* 사용자가 만든 빈 폴더 (링크 없어도 보여야 함) */
+function allMids(g){
+  const set=midsOf(g).slice();
+  S.links.forEach(l=>{ if(l.group===g&&l.mid&&!set.includes(l.mid)) set.push(l.mid); });
+  userFolders().forEach(f=>{ if(f.g===g&&!set.includes(f.m)) set.push(f.m); });
+  return set;
+}
+function allFolders(g,m){
+  const set=seedFoldersOf(g,m).slice();
+  S.links.forEach(l=>{ if(l.group===g&&l.mid===m&&!set.includes(l.folder)) set.push(l.folder); });
+  userFolders().forEach(f=>{ if(f.g===g&&f.m===m&&!set.includes(f.f)) set.push(f.f); });
+  return set;
+}
+function allGroups(){
+  const set=GROUPS.filter(g=>g!=='미분류');
+  S.links.forEach(l=>{ if(l.group&&!set.includes(l.group)&&l.group!=='미분류') set.push(l.group); });
+  userFolders().forEach(f=>{ if(!set.includes(f.g)&&f.g!=='미분류') set.push(f.g); });
+  return set.concat(['미분류']);
 }
 function renderTree(){
   _tIdx=[];
@@ -547,25 +566,33 @@ function renderTree(){
     cm[tkey(l.group,l.mid)]=(cm[tkey(l.group,l.mid)]||0)+1;
     cf[tkey(l.group,l.mid,l.folder)]=(cf[tkey(l.group,l.mid,l.folder)]||0)+1; });
   let h='';
-  GROUPS.forEach(g=>{
-    if(!cg[g]) return;
+  allGroups().forEach(g=>{
     const gk=tkey(g), go_=!!_open[gk];
-    h+=`<div class="tnode g1" data-tg="${esc(gk)}"><span class="ar">${go_?'▾':'▸'}</span>
-        <span class="nm">${esc(g)}</span><span class="cnt">${cg[g]}</span></div>`;
+    const hasUF=userFolders().some(f=>f.g===g);
+    if(!cg[g]&&!hasUF&&g!=='미분류') return;
+    if(g==='미분류'&&!cg[g]) return;
+    h+=`<div class="tnode g1" data-tg="${esc(gk)}" data-drop="${esc(gk)}"><span class="ar">${go_?'▾':'▸'}</span>
+        <span class="nm">${esc(g)}</span><span class="cnt">${cg[g]||0}</span>
+        ${g!=='미분류'?`<span class="mk" data-newmid="${esc(g)}" title="중분류 만들기">＋</span>`:''}</div>`;
     if(!go_) return;
-    midsOf(g).forEach(m=>{
-      const mk=tkey(g,m); if(!cm[mk]) return;
+    allMids(g).forEach(m=>{
+      const mk=tkey(g,m);
+      const hasUFm=userFolders().some(f=>f.g===g&&f.m===m);
+      if(!cm[mk]&&!hasUFm) return;
       const mo=!!_open[mk];
-      h+=`<div class="tnode g2" data-tg="${esc(mk)}"><span class="ar">${mo?'▾':'▸'}</span>
-          <span class="nm">${esc(m)}</span><span class="cnt">${cm[mk]}</span></div>`;
+      h+=`<div class="tnode g2" data-tg="${esc(mk)}" data-drop="${esc(mk)}"><span class="ar">${mo?'▾':'▸'}</span>
+          <span class="nm">${esc(m)}</span><span class="cnt">${cm[mk]||0}</span>
+          ${g!=='미분류'?`<span class="mk" data-newfolder="${esc(mk)}" title="폴더 만들기">＋</span>`:''}</div>`;
       if(!mo) return;
-      seedFoldersOf(g,m).concat(
-        [...new Set(L.filter(l=>l.group===g&&l.mid===m).map(l=>l.folder))]
-      ).filter((v,i,a)=>a.indexOf(v)===i).forEach(f=>{
-        const fk=tkey(g,m,f); if(!cf[fk]) return;
+      allFolders(g,m).forEach(f=>{
+        const fk=tkey(g,m,f);
+        const hasUFf=userFolders().some(x=>x.g===g&&x.m===m&&x.f===f);
+        if(!cf[fk]&&!hasUFf) return;
         const fo=!!_open[fk];
-        h+=`<div class="tnode g3 ${fo?'on':''}" data-tg="${esc(fk)}"><span class="ar">${fo?'▾':'▸'}</span>
-            <span class="nm">${esc(f)}</span><span class="cnt">${cf[fk]}</span></div>`;
+        h+=`<div class="tnode g3 ${fo?'on':''}" data-tg="${esc(fk)}" data-drop="${esc(fk)}" draggable="true" data-dragf="${esc(fk)}">
+            <span class="ar">${fo?'▾':'▸'}</span>
+            <span class="nm">${esc(f)}</span><span class="cnt">${cf[fk]||0}</span>
+            <span class="mk" data-renf="${esc(fk)}" title="이름 바꾸기">이름</span></div>`;
         if(!fo) return;
         h+=L.filter(l=>l.group===g&&l.mid===m&&l.folder===f)
              .sort((a,b)=>b.opens-a.opens||(a.title||'').localeCompare(b.title||''))
@@ -612,7 +639,17 @@ function renderAllTab(){
     return;
   }
 
-  fRow.innerHTML=`<b class="chip" id="expAll">모두 펴기</b><b class="chip" id="colAll">모두 접기</b>`;
+  fRow.innerHTML=`<b class="chip" id="expAll">모두 펴기</b><b class="chip" id="colAll">모두 접기</b>
+    <b class="chip g" id="newGroup">＋ 대분류</b>
+    <span class="flab" style="margin-left:6px">링크·폴더는 끌어다 놓아 옮깁니다</span>`;
+  document.getElementById('newGroup').onclick=()=>{
+    const g=prompt('새 대분류 이름'); if(!g||!g.trim())return;
+    const m=prompt('그 안에 첫 중분류 이름 (비우면 「기본」)')||'기본';
+    const f=prompt('그 안에 첫 폴더 이름 (비우면 「기본」)')||'기본';
+    S.folders=userFolders().concat([{g:g.trim(),m:m.trim()||'기본',f:f.trim()||'기본'}]);
+    _open[tkey(g.trim())]=1; _open[tkey(g.trim(),m.trim()||'기본')]=1;
+    save(); renderAllTab(); toast('만들었습니다');
+  };
   document.getElementById('expAll').onclick=()=>{
     S.links.forEach(l=>{ _open[tkey(l.group)]=1; _open[tkey(l.group,l.mid)]=1; });
     renderAllTab();
@@ -693,81 +730,15 @@ function renderClean(){
   const body=document.getElementById('cleanBody');
 
   if(cleanView==='folder'){
-    /* 폴더 관리 — 이름 바꾸기·합치기·옮기기. 폴더 안의 링크는 그대로 따라간다. */
-    const todo=S.links.filter(needsSort).length;
-    let h=`<div class="sec"><h2>폴더 관리</h2><span>폴더 ${foldersOf('').length}개</span></div>
-      <div class="note" style="margin-top:6px">이름을 바꾸거나 두 폴더를 합칠 수 있습니다.
-        <b>링크는 사라지지 않고 폴더를 따라 움직입니다.</b>${todo?'<br>제자리를 못 찾은 링크 '+todo+'개는 아래 「정리 필요」에 모아뒀습니다.':''}</div>`;
-    _fmIdx=[];
-    GROUPS.forEach(g=>{
-      const inG=S.links.filter(l=>l.group===g);
-      if(!inG.length) return;
-      h+=`<div class="tree" style="margin-top:12px">
-        <div class="tnode g1"><span class="nm">${esc(g)}</span><span class="cnt">${inG.length}</span></div>`;
-      midsOf(g).concat([...new Set(inG.map(l=>l.mid))]).filter((v,i,a)=>a.indexOf(v)===i).forEach(m=>{
-        const inM=inG.filter(l=>l.mid===m); if(!inM.length) return;
-        h+=`<div class="tnode g2"><span class="nm">${esc(m)}</span><span class="cnt">${inM.length}</span></div>`;
-        [...new Set(inM.map(l=>l.folder))].sort().forEach(f=>{
-          const n=inM.filter(l=>l.folder===f).length;
-          const i=_fmIdx.push({g:g,m:m,f:f})-1;
-          h+=`<div class="tnode g3" style="cursor:default">
-                <span class="nm">${esc(f)}</span><span class="cnt">${n}</span>
-                <span class="ed" data-fm="${i}" data-act="rename">이름</span>
-                <span class="ed" data-fm="${i}" data-act="merge">합치기</span>
-                <span class="ed" data-fm="${i}" data-act="move">옮기기</span>
-              </div>`;
-        });
-      });
-      h+=`</div>`;
-    });
-    if(todo) h+=`<button class="btn w" id="goSort" style="margin-top:12px">정리 필요한 링크 ${todo}개 보기</button>`;
-    body.innerHTML=h;
-    const gs=document.getElementById('goSort');
-    if(gs) gs.onclick=()=>{ q=''; tagF=''; go('all');
-      const el=document.getElementById('q'); if(el){ el.value='분류전'; q='분류전'; renderAllTab(); } };
-    return;
-  }
-
-  if(cleanView==='auto'){
-    const target = _autoAll ? S.links : S.links.filter(needsSort);
-    const props=[];
-    target.forEach(function(l){
-      const sg=suggest(l);
-      if(sg && !(sg.group===l.group && sg.mid===l.mid && sg.folder===l.folder)) props.push({l:l,s:sg});
-    });
-    const byF={};
-    props.forEach(function(p){ (byF[p.s.group+'§'+p.s.mid+'§'+p.s.folder]=byF[p.s.group+'§'+p.s.mid+'§'+p.s.folder]||[]).push(p); });
-    const keys=Object.keys(byF).sort(function(a,b){ return byF[b].length-byF[a].length; });
-    _autoIdx=byF;
-    body.innerHTML=`<div class="sec"><h2>자동 분류</h2><span>${props.length}개 제안</span></div>
-      <div class="seg" style="margin-top:6px">
-        <b class="${_autoAll?'':'on'}" data-au="todo">정리 필요한 것만</b>
-        <b class="${_autoAll?'on':''}" data-au="all">전체 다시 판정</b></div>
-      <div class="note" style="margin-top:8px">제목·주소·메모로 판정합니다.
-        브라우저 보안 때문에 <b>사이트 내용까지는 못 읽습니다</b> — 그건 앱 밖에서만 가능합니다.
-        묶음별로 확인하고 「적용」을 누르세요.
-        ${_autoAll?'<br><br><b style="color:var(--terra)">주의</b> — 지금 폴더는 사이트 내용까지 읽어서 정한 것입니다. 전체 다시 판정은 제목만 보는 판정이라 <b>더 나빠질 수 있습니다.</b> 묶음을 하나씩 확인하고 맞는 것만 적용하세요.':''}</div>`
-      + (keys.length ? keys.map(function(k){
-          const arr=byF[k], p=k.split('§');
-          return `<div class="tree" style="margin-top:10px">
-            <div class="tnode g1"><span class="nm">${esc(p[2])}</span><span class="cnt">${arr.length}</span></div>
-            <div class="tnode g2" style="cursor:default"><span class="nm" style="font-weight:700">${esc(p[0])} › ${esc(p[1])}</span>
-              <span class="ed" data-au2="${esc(k)}">이 ${arr.length}개 적용</span></div>
-            ${arr.slice(0,8).map(function(x){ return `<div class="tlink"><span class="fi txt">·</span>
-              <span class="t" style="cursor:default">${esc(x.l.title||domainOf(x.l.url))}</span>
-              <span class="dm">${esc(x.l.folder)} →</span></div>`; }).join('')}
-            ${arr.length>8?`<div class="tlink"><span class="fi txt">·</span><span class="t" style="cursor:default;color:var(--mut)">외 ${arr.length-8}개</span></div>`:''}
-          </div>`;
-        }).join('')
-        : `<div class="empty">제안할 게 없습니다.<br>제목·주소만으로는 더 정할 수 있는 게 없어요.</div>`)
-      + (keys.length>1?`<button class="btn fill w" id="autoAllBtn" style="margin-top:12px">전부 적용 (${props.length}개)</button>`:'');
-    const ab=document.getElementById('autoAllBtn');
-    if(ab) ab.onclick=function(){
-      if(!confirm(props.length+'개를 제안대로 옮깁니다. 계속할까요?'))return;
-      props.forEach(function(p){ p.l.group=p.s.group; p.l.mid=p.s.mid; p.l.folder=p.s.folder;
-        p.s.tags.forEach(function(t){ if(p.l.tags.indexOf(t)<0) p.l.tags.push(t); }); });
-      save(); renderAllUI(); toast(props.length+'개 정리했습니다');
-    };
+    body.innerHTML=`<div class="sec"><h2>폴더</h2><span>${foldersOf('').length}개</span></div>
+      <div class="note" style="margin-top:6px">폴더 관리는 <b>홈 트리에서 바로</b> 합니다.<br><br>
+        · 폴더 만들기 — 대분류·중분류 오른쪽 <b>＋</b><br>
+        · 이름 바꾸기 — 폴더 오른쪽 <b>이름</b><br>
+        · 링크 옮기기 — 링크를 <b>끌어서 폴더에 놓기</b><br>
+        · 폴더 옮기기 — 폴더를 <b>끌어서 대분류·중분류에 놓기</b><br>
+        · 미분류 — 자리 못 정한 링크가 모이는 곳. 여기서 끌어다 놓으면 됩니다</div>
+      <button class="btn fill w" id="goHomeTree" style="margin-top:12px">홈으로</button>`;
+    document.getElementById('goHomeTree').onclick=()=>go('all');
     return;
   }
 
@@ -841,7 +812,7 @@ ${S.links.length&&S.links.every(l=>l.folder==='기타'||l.folder==='미분류')?
   document.getElementById('resetBtn').onclick=()=>{
     if(!confirm('링크 '+S.links.length+'개를 전부 지웁니다.\n다운로드 폴더의 JSON 파일로 다시 불러올 수 있습니다.\n계속할까요?'))return;
     if(!confirm('정말 지울까요? 되돌릴 수 없습니다.'))return;
-    S={v:2,links:[]}; save(); renderAllUI(); go('clean'); cleanView='import'; renderClean();
+    S={v:2,links:[],folders:[]}; save(); renderAllUI(); go('clean'); cleanView='import'; renderClean();
     toast('전부 지웠습니다 — 파일을 다시 올려주세요');
   };
   document.getElementById('syncState').textContent = fbUser? (fbUser.email||'로그인됨')+' · 폰·PC 자동 동기화' : '로그인 안 됨 — 이 기기에만 저장됩니다';
@@ -1035,9 +1006,10 @@ function quickAdd(id){
   let add=0, dup=0, last='';
   us.forEach(url=>{
     if(S.links.some(l=>normUrl(l.url)===normUrl(url))){ dup++; return; }
-    const f=autoFolder(url,'');
-    S.links.push(normLink({url,title:domainOf(url),folder:f,group:groupOf(f)||'미분류',
-      added:Date.now(),srcs:['직접']}));
+    const sg=suggest({title:'',url:url,note:'',bcat:'',bcountry:''});
+    const f=sg?sg.folder:'미분류';
+    S.links.push(normLink({url,title:domainOf(url),folder:f,group:sg?sg.group:'미분류',mid:sg?sg.mid:'미분류',
+      tags:sg?sg.tags:[],added:Date.now(),srcs:['직접']}));
     add++; last=f;
   });
   save(); renderAllUI();
@@ -1290,7 +1262,7 @@ function setAcct(){
   [pc,mo].forEach(b=>{ b.style.background=fbUser?'var(--ink)':''; b.style.color=fbUser?'var(--paper)':''; b.style.borderColor=fbUser?'var(--ink)':''; });
 }
 function cloudRef(){ return fbDB.collection('users').doc(fbUser.uid).collection('data').doc('linklog'); }
-function cloudPayload(){ return JSON.stringify({v:2,links:S.links}); }
+function cloudPayload(){ return JSON.stringify({v:2,links:S.links,folders:S.folders||[]}); }
 function cloudPush(){
   if(!fbUser||!fbDB)return;
   clearTimeout(_pushT);
@@ -1324,6 +1296,7 @@ function isBusy(){
 function flushPendingCloud(){ if(_pendingCloud&&!isBusy()){ const d=_pendingCloud; _pendingCloud=null; applyCloud(d,true); } }
 function applyCloud(data,notify){
   S.links=(data.links||[]).map(normLink);
+  S.folders=Array.isArray(data.folders)?data.folders:(S.folders||[]);
   try{ localStorage.setItem(LS,JSON.stringify(S)); }catch(e){}
   renderAllUI();
   if(notify)toast('다른 기기 변경이 반영됐어요');
@@ -1371,16 +1344,6 @@ document.addEventListener('click',e=>{
     return;
   }
 
-  const au=e.target.closest('[data-au]');
-  if(au){ _autoAll=(au.dataset.au==='all'); renderClean(); return; }
-  const au2=e.target.closest('[data-au2]');
-  if(au2){
-    const arr=_autoIdx[au2.dataset.au2]||[];
-    arr.forEach(function(p){ p.l.group=p.s.group; p.l.mid=p.s.mid; p.l.folder=p.s.folder;
-      p.s.tags.forEach(function(t){ if(p.l.tags.indexOf(t)<0) p.l.tags.push(t); }); });
-    save(); renderAllUI(); toast(arr.length+'개 옮겼습니다');
-    return;
-  }
   const fmb=e.target.closest('[data-fm]');
   if(fmb){ openFolderManage(+fmb.dataset.fm, fmb.dataset.act); return; }
   const qk=e.target.closest('[data-quick]'); if(qk){ quickAdd(qk.dataset.quick); return; }
@@ -1390,6 +1353,27 @@ document.addEventListener('click',e=>{
   const row=e.target.closest('.lrow,.brow');
   if(row&&row.dataset.id){ openDetail(row.dataset.id); return; }
 
+  const nmid=e.target.closest('[data-newmid]');
+  if(nmid){ e.stopPropagation();
+    const g=nmid.dataset.newmid;
+    const m=prompt('「'+g+'」 안에 새 중분류 이름'); if(!m||!m.trim())return;
+    const f=prompt('그 안에 첫 폴더 이름 (비우면 「기본」)')||'기본';
+    S.folders=userFolders().concat([{g:g,m:m.trim(),f:f.trim()||'기본'}]);
+    _open[tkey(g)]=1; _open[tkey(g,m.trim())]=1; save(); renderAllTab(); toast('만들었습니다'); return; }
+  const nf=e.target.closest('[data-newfolder]');
+  if(nf){ e.stopPropagation();
+    const p=nf.dataset.newfolder.split('§');
+    const f=prompt('「'+p[1]+'」 안에 새 폴더 이름'); if(!f||!f.trim())return;
+    S.folders=userFolders().concat([{g:p[0],m:p[1],f:f.trim()}]);
+    _open[tkey(p[0])]=1; _open[tkey(p[0],p[1])]=1; save(); renderAllTab(); toast('만들었습니다'); return; }
+  const rf=e.target.closest('[data-renf]');
+  if(rf){ e.stopPropagation();
+    const p=rf.dataset.renf.split('§');
+    const nv=prompt('폴더 이름 바꾸기', p[2]); if(nv===null)return;
+    const v=nv.trim(); if(!v||v===p[2])return;
+    S.links.forEach(l=>{ if(l.group===p[0]&&l.mid===p[1]&&l.folder===p[2]) l.folder=v; });
+    S.folders=userFolders().map(x=>(x.g===p[0]&&x.m===p[1]&&x.f===p[2])?{g:x.g,m:x.m,f:v}:x);
+    save(); renderAllTab(); toast('바꿨습니다'); return; }
   const tg=e.target.closest('[data-tg]');
   if(tg){ const k=tg.dataset.tg; _open[k]=!_open[k]; renderAllTab(); return; }
   const tagb=e.target.closest('[data-tag]');
@@ -1458,11 +1442,58 @@ document.getElementById('acctMo').onclick=openAuth;
 document.getElementById('shX').onclick=closeSheet;
 document.getElementById('mask').onclick=closeSheet;
 document.getElementById('filePick').onchange=e=>{ if(e.target.files[0]) readFile(e.target.files[0]); e.target.value=''; };
-document.addEventListener('dragover',e=>e.preventDefault());
-document.addEventListener('drop',e=>e.preventDefault());
+/* 드래그앤드롭 — 링크(data-dragl) 또는 폴더(data-dragf)를 폴더/중분류/대분류(data-drop)에 놓는다 */
+let _drag=null;
+document.addEventListener('dragstart',e=>{
+  const l=e.target.closest&&e.target.closest('[data-dragl]');
+  const f=e.target.closest&&e.target.closest('[data-dragf]');
+  if(l){ _drag={type:'link',id:l.dataset.dragl}; l.classList.add('dragging'); }
+  else if(f){ _drag={type:'folder',key:f.dataset.dragf}; f.classList.add('dragging'); }
+  else return;
+  try{ e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain','x'); }catch(x){}
+});
+document.addEventListener('dragend',()=>{ _drag=null; document.querySelectorAll('.dragging,.over').forEach(x=>x.classList.remove('dragging','over')); });
+document.addEventListener('dragover',e=>{
+  e.preventDefault();
+  const t=e.target.closest&&e.target.closest('[data-drop]');
+  document.querySelectorAll('.tnode.over').forEach(x=>{ if(x!==t)x.classList.remove('over'); });
+  if(t&&_drag) t.classList.add('over');
+});
+document.addEventListener('drop',e=>{
+  e.preventDefault();
+  const t=e.target.closest&&e.target.closest('[data-drop]');
+  document.querySelectorAll('.tnode.over').forEach(x=>x.classList.remove('over'));
+  if(!t||!_drag) return;
+  const p=t.dataset.drop.split('§');            /* [g] | [g,m] | [g,m,f] */
+  const g=p[0], m=p[1]||allMids(g)[0]||'기본', f=p[2]||allFolders(g,m)[0]||'기본';
+  if(_drag.type==='link'){
+    const l=S.links.find(x=>x.id===_drag.id); if(!l)return;
+    l.group=g; l.mid=m; l.folder=f;
+    _open[tkey(g)]=1; _open[tkey(g,m)]=1; _open[tkey(g,m,f)]=1;
+    save(); renderAllTab(); toast(f+'(으)로 옮겼습니다');
+  } else {
+    const q=_drag.key.split('§');
+    if(p.length>=3){ toast('폴더는 대분류나 중분류에 놓으세요'); return; }
+    let n=0;
+    S.links.forEach(l=>{ if(l.group===q[0]&&l.mid===q[1]&&l.folder===q[2]){ l.group=g; l.mid=m; l.folder=q[2]; n++; } });
+    S.folders=userFolders().map(x=>(x.g===q[0]&&x.m===q[1]&&x.f===q[2])?{g:g,m:m,f:q[2]}:x);
+    _open[tkey(g)]=1; _open[tkey(g,m)]=1;
+    save(); renderAllTab(); toast('폴더 「'+q[2]+'」 '+n+'개를 옮겼습니다');
+  }
+  _drag=null;
+});
 
 const _vm=document.getElementById('verMo'); if(_vm) _vm.textContent=APP_VER;
-load(); renderAllUI(); setAcct(); initFb();
+load();
+/* 옛 체계 잔재(기타·분류전) 는 normLink가 미분류로 옮겨놓는다. 그게 많으면 한 번 안내 */
+(function(){
+  const un=S.links.filter(l=>l.group==='미분류').length;
+  if(un>0 && un>=S.links.length*0.5 && !localStorage.getItem('linklog_migrated')){
+    localStorage.setItem('linklog_migrated','1');
+    setTimeout(()=>{ toast('옛 방식으로 저장된 링크 '+un+'개를 미분류로 모았습니다 — 정리 → 가져오기에서 「지우고 이 파일로」로 정리본을 넣으세요'); },600);
+  }
+})();
+renderAllUI(); setAcct(); initFb();
 </script>
 </body>
 </html>
