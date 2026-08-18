@@ -339,7 +339,7 @@ function midsOf(g){ return Object.keys(TAX[g]||{}); }
 function seedFoldersOf(g,m){ return ((TAX[g]||{})[m])||[]; }
 const isTodo=f=>/\(분류전\)/.test(f||'');
 
-const APP_VER='2026-08-17i';   /* 화면에 띄운다 — 옛 버전이 캐시돼 있는지 눈으로 확인하려고 */
+const APP_VER='2026-08-17j';   /* 화면에 띄운다 — 옛 버전이 캐시돼 있는지 눈으로 확인하려고 */
 const LS='linklog_v1';
 /* 앱을 열면 트리(홈)가 먼저 — 저장보다 '빨리 꺼내 쓰기'가 이 앱의 목적 */
 const TABS=[['all','홈'],['brand','브랜드'],['home','관리'],['clean','정리']];
@@ -486,7 +486,7 @@ function renderHome(){
         <div style="padding:14px 12px;font-size:11.5px;line-height:2;color:var(--mut)">
           <b style="color:var(--ink)">1</b>&nbsp; 오른쪽 위 <b style="color:var(--ink)">로그인</b> — 폰과 PC가 같은 링크로 이어집니다<br>
           <b style="color:var(--ink)">2</b>&nbsp; <b style="color:var(--ink)">정리</b> 탭 → <b style="color:var(--ink)">가져오기</b> —
-          바탕화면의 <b style="color:var(--ink)">LINKLOG-내링크.json</b> 을 올리면 크롬·사파리·노션이 한 번에 들어옵니다<br>
+          다운로드 폴더의 <b style="color:var(--ink)">LINKLOG-내링크.json</b> 을 올리면 크롬·사파리·노션이 한 번에 들어옵니다<br>
           <b style="color:var(--ink)">3</b>&nbsp; 그다음 <b style="color:var(--ink)">정리 → 분류전</b> 에서 폴더를 정해 주세요
         </div>
         <div style="padding:0 12px 14px"><button class="btn fill w" id="startImp">정리 탭으로 가기</button></div>
@@ -839,7 +839,7 @@ ${S.links.length&&S.links.every(l=>l.folder==='기타'||l.folder==='미분류')?
     <div class="note"><b>이 앱은 링크 보관함이 아니라 다시 꺼내 쓰는 도구입니다</b><br>
       열 때마다 횟수가 쌓이고, 그 숫자가 홈의 "자주 여는 것" 순서를 만듭니다.</div>`;
   document.getElementById('resetBtn').onclick=()=>{
-    if(!confirm('링크 '+S.links.length+'개를 전부 지웁니다.\n바탕화면 JSON 파일로 다시 불러올 수 있습니다.\n계속할까요?'))return;
+    if(!confirm('링크 '+S.links.length+'개를 전부 지웁니다.\n다운로드 폴더의 JSON 파일로 다시 불러올 수 있습니다.\n계속할까요?'))return;
     if(!confirm('정말 지울까요? 되돌릴 수 없습니다.'))return;
     S={v:2,links:[]}; save(); renderAllUI(); go('clean'); cleanView='import'; renderClean();
     toast('전부 지웠습니다 — 파일을 다시 올려주세요');
